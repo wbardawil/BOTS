@@ -581,31 +581,84 @@ async def reseed(user: dict = Depends(get_current_user)):
 
 
 # ---------------- Lifecycle pipeline ----------------
-STAGES = [
-    {"key": "discovery", "label": "Discovery"},
-    {"key": "assessing", "label": "Assessing"},
-    {"key": "alternatives", "label": "Alternatives"},
-    {"key": "offer", "label": "Offer"},
-    {"key": "approved", "label": "Approved"},
-    {"key": "in_progress", "label": "In progress"},
-    {"key": "live", "label": "Live"},
-    {"key": "realized", "label": "Realized"},
+DEFAULT_STAGES = [
+    {"key": "discovery", "label": "Discovery", "gated": False},
+    {"key": "assessing", "label": "Assessing", "gated": False},
+    {"key": "alternatives", "label": "Alternatives", "gated": False},
+    {"key": "offer", "label": "Offer", "gated": False},
+    {"key": "approved", "label": "Approved", "gated": True},
+    {"key": "in_progress", "label": "In progress", "gated": True},
+    {"key": "live", "label": "Live", "gated": True},
+    {"key": "realized", "label": "Realized", "gated": True},
 ]
-STAGE_KEYS = [s["key"] for s in STAGES]
-STAGE_LABELS = {s["key"]: s["label"] for s in STAGES}
-GATED_STAGES = {"approved", "in_progress", "live", "realized"}
+STAGES = DEFAULT_STAGES  # global default; companies may customize
 PIPELINE_ETYPES = {"initiative", "opportunity"}
+
+
+async def get_org_stages(org_id):
+    org = clean(await db.organizations.find_one({"id": org_id}))
+    st = (org or {}).get("pipeline_stages")
+    return st or DEFAULT_STAGES
+
+
+def _stage_maps(stages):
+    keys = [s["key"] for s in stages]
+    labels = {s["key"]: s["label"] for s in stages}
+    gated = {s["key"] for s in stages if s.get("gated")}
+    return keys, labels, gated
 
 
 def _owner_of(data):
     return data.get("owner") or data.get("human_owner") or data.get("assignee")
 
 
-def _blocked_reason(etype, data, stage):
+def _blocked_reason(data, stage, labels, gated):
     """Clear reason a stage move is blocked, or None if allowed."""
-    if stage in GATED_STAGES and not _owner_of(data):
-        return f"Assign an owner before moving to “{STAGE_LABELS[stage]}”. Gated stages need an accountable owner."
+    if stage in gated and not _owner_of(data):
+        return f"Assign an owner before moving to “{labels[stage]}”. Gated stages need an accountable owner."
     return None
+
+
+class OrgStagesIn(BaseModel):
+    stages: List[dict]
+
+
+@api.get("/organizations/{org_id}/stages")
+async def get_stages(org_id: str, user: dict = Depends(get_current_user)):
+    await require_read(user, org_id)
+    stages = await get_org_stages(org_id)
+    role = await org_role(user, org_id)
+    return {"stages": stages, "is_custom": stages is not DEFAULT_STAGES,
+            "can_edit": role in ("company_admin", "workspace_admin", "platform_admin")}
+
+
+@api.put("/organizations/{org_id}/stages")
+async def save_stages(org_id: str, body: OrgStagesIn, user: dict = Depends(get_current_user)):
+    role = await org_role(user, org_id)
+    if role not in ("company_admin", "workspace_admin", "platform_admin"):
+        raise HTTPException(403, "Only company admins may edit pipeline stages")
+    cleaned, seen = [], set()
+    for s in body.stages:
+        key = (s.get("key") or "").strip()
+        label = (s.get("label") or "").strip()
+        if not key or not label:
+            raise HTTPException(400, "Each stage needs a key and a label.")
+        if key in seen:
+            raise HTTPException(400, f"Duplicate stage key: {key}")
+        seen.add(key)
+        cleaned.append({"key": key, "label": label, "gated": bool(s.get("gated"))})
+    if not cleaned:
+        raise HTTPException(400, "At least one stage is required.")
+    # Protect stages that still hold records from being removed
+    current = await get_org_stages(org_id)
+    removed = [s["key"] for s in current if s["key"] not in seen]
+    for key in removed:
+        n = await db.entities.count_documents({"organization_id": org_id, "data.stage": key, "archived": False})
+        if n:
+            raise HTTPException(400, f"Cannot remove “{key}”: {n} record(s) are still in that stage. Move them first.")
+    await db.organizations.update_one({"id": org_id}, {"$set": {"pipeline_stages": cleaned}})
+    await audit(user, org_id, "stages_edit", "organization", org_id, f"{len(cleaned)} stages")
+    return {"ok": True, "stages": cleaned}
 
 
 class StageIn(BaseModel):
@@ -622,9 +675,11 @@ async def move_stage(eid: str, body: StageIn, user: dict = Depends(get_current_u
     await require_write(user, e["organization_id"])
     if body.version != e["version"]:
         raise HTTPException(409, "Record changed since you loaded it. Reload and retry.")
-    if body.stage not in STAGE_KEYS:
+    stages = await get_org_stages(e["organization_id"])
+    keys, labels, gated = _stage_maps(stages)
+    if body.stage not in keys:
         raise HTTPException(400, f"Unknown stage {body.stage}")
-    reason = _blocked_reason(e["etype"], e["data"], body.stage)
+    reason = _blocked_reason(e["data"], body.stage, labels, gated)
     if reason:
         raise HTTPException(400, reason)
     history = list(e["data"].get("stage_history", []))
@@ -634,8 +689,7 @@ async def move_stage(eid: str, body: StageIn, user: dict = Depends(get_current_u
     if body.stage == "live" and not e["data"].get("went_live_at"):
         upd["data.went_live_at"] = now_iso()
     await db.entities.update_one({"id": eid}, {"$set": upd})
-    await audit(user, e["organization_id"], "stage_move", e["etype"], eid,
-                f"→ {STAGE_LABELS[body.stage]}")
+    await audit(user, e["organization_id"], "stage_move", e["etype"], eid, f"→ {labels[body.stage]}")
     return clean(await db.entities.find_one({"id": eid}))
 
 
@@ -649,8 +703,6 @@ class BulkIn(BaseModel):
 async def bulk_action(body: BulkIn, user: dict = Depends(get_current_user)):
     if body.action not in ("stage", "owner", "area"):
         raise HTTPException(400, "Unsupported bulk action")
-    if body.action == "stage" and body.value not in STAGE_KEYS:
-        raise HTTPException(400, "Unknown stage")
     updated, skipped = [], []
     for eid in body.ids:
         e = clean(await db.entities.find_one({"id": eid}))
@@ -663,7 +715,12 @@ async def bulk_action(body: BulkIn, user: dict = Depends(get_current_user)):
             skipped.append({"id": eid, "reason": "no write access"})
             continue
         if body.action == "stage":
-            reason = _blocked_reason(e["etype"], e["data"], body.value)
+            stages = await get_org_stages(e["organization_id"])
+            keys, labels, gated = _stage_maps(stages)
+            if body.value not in keys:
+                skipped.append({"id": eid, "reason": "unknown stage"})
+                continue
+            reason = _blocked_reason(e["data"], body.value, labels, gated)
             if reason:
                 skipped.append({"id": eid, "reason": reason})
                 continue
@@ -762,7 +819,10 @@ async def remove_attachment(aid: str, user: dict = Depends(get_current_user)):
 DEFAULT_WIDGETS = [
     {"id": "w-roi", "type": "roi_rollup", "size": "md"},
     {"id": "w-throughput", "type": "lifecycle_throughput", "size": "md"},
+    {"id": "w-area", "type": "roi_by_area", "size": "md"},
+    {"id": "w-phase", "type": "phase_progress", "size": "md"},
     {"id": "w-timefreed", "type": "time_freed", "size": "sm"},
+    {"id": "w-reminders", "type": "reminders", "size": "sm"},
     {"id": "w-cadence", "type": "measurement_cadence", "size": "md"},
     {"id": "w-health", "type": "inventory_health", "size": "sm"},
     {"id": "w-roitable", "type": "roi_by_initiative", "size": "lg"},
@@ -868,18 +928,125 @@ async def analytics(org_id: str, user: dict = Depends(get_current_user)):
             missing_owner += 1
         if not e.get("last_reviewed_at"):
             never_reviewed += 1
-    stage_counts = {k: 0 for k in STAGE_KEYS}
+    stages = await get_org_stages(org_id)
+    keys, _labels, _gated = _stage_maps(stages)
+    stage_counts = {k: 0 for k in keys}
     for r in records:
         if r["stage"] in stage_counts:
             stage_counts[r["stage"]] += 1
+    phase_counts = {1: 0, 2: 0, 3: 0}
+    for e in all_ents:
+        p = e["data"].get("phase")
+        if p in phase_counts:
+            phase_counts[p] += 1
     return {
         "currency": org.get("currency", "USD"),
         "records": records,
         "stage_counts": stage_counts,
-        "stages": STAGES,
+        "phase_counts": phase_counts,
+        "stages": stages,
         "inventory": {"by_type": by_type, "by_area": by_area, "total": len(all_ents),
                       "missing_owner": missing_owner, "never_reviewed": never_reviewed},
     }
+
+
+def _annual_cost(d):
+    c = _num(d.get("cost_estimate")) if d.get("cost_estimate") not in (None, "") else _num(d.get("budget"))
+    if c is None:
+        return None
+    p = d.get("cost_period") or ("one_off" if d.get("budget") else None)
+    if p == "monthly":
+        return c * 12
+    if p == "per_use":
+        return None
+    return c
+
+
+async def _org_rollup(org_id):
+    org = clean(await db.organizations.find_one({"id": org_id})) or {}
+    stages = await get_org_stages(org_id)
+    keys, _labels, _gated = _stage_maps(stages)
+    ents = [clean(e) for e in await db.entities.find(
+        {"organization_id": org_id, "archived": False}).to_list(10000)]
+    recs = [e for e in ents if e["etype"] in ANALYTICS_ETYPES]
+    total_cost = sum(v for v in (_annual_cost(e["data"]) for e in recs) if v)
+    expected = sum(v for v in (_num(e["data"].get("expected_benefit")) for e in recs) if v)
+    realized = sum(v for v in (_num(e["data"].get("realized_benefit")) for e in recs) if v)
+    cc = bb = complete = 0
+    for e in recs:
+        d = e["data"]
+        c = _annual_cost(d)
+        rb = _num(d.get("realized_benefit"))
+        eb = _num(d.get("expected_benefit"))
+        b = rb if rb is not None else eb
+        if c is not None and b is not None:
+            cc += c
+            bb += b
+            complete += 1
+    roi = ((bb - cc) / cc * 100) if (complete and cc > 0) else None
+    by_area = {}
+    for e in recs:
+        ar = e["data"].get("area")
+        if ar:
+            by_area[ar] = by_area.get(ar, 0) + 1
+    stage_counts = {k: 0 for k in keys}
+    for e in recs:
+        s = e["data"].get("stage")
+        if s in stage_counts:
+            stage_counts[s] += 1
+    return {"id": org_id, "name": org.get("name"), "currency": org.get("currency", "USD"),
+            "cost": total_cost, "expected": expected, "realized": realized, "roi_pct": roi,
+            "complete": complete, "total": len(recs), "by_area": by_area, "stage_counts": stage_counts}
+
+
+@api.get("/portfolios/{pf_id}/analytics")
+async def portfolio_analytics(pf_id: str, user: dict = Depends(get_current_user)):
+    pf = clean(await db.portfolios.find_one({"id": pf_id}))
+    if not pf:
+        raise HTTPException(404, "Not found")
+    ws_ids = await accessible_workspace_ids(user)
+    if pf["workspace_id"] not in ws_ids:
+        raise HTTPException(403, "Not authorized")
+    allowed = await accessible_org_ids(user)
+    members = list(dict.fromkeys(pf["organization_ids"]))  # dedupe
+    visible = [m for m in members if m in allowed]
+    restricted = len(members) - len(visible)
+    companies = [await _org_rollup(oid) for oid in visible]
+    return {"portfolio": pf["name"], "companies": companies, "restricted_count": restricted,
+            "notes": ["Companies in multiple portfolios are counted once.",
+                      "Currencies are kept separate — totals are not summed across currencies.",
+                      f"{restricted} company/companies withheld due to access restrictions."]}
+
+
+@api.get("/organizations/{org_id}/reminders")
+async def measurement_reminders(org_id: str, user: dict = Depends(get_current_user)):
+    await require_read(user, org_id)
+    ents = [clean(e) for e in await db.entities.find(
+        {"organization_id": org_id, "archived": False,
+         "etype": {"$in": ["initiative", "opportunity", "agent"]}}).to_list(10000)]
+    now = datetime.now(timezone.utc)
+    out = []
+    for e in ents:
+        wl = e["data"].get("went_live_at")
+        if not wl:
+            continue
+        try:
+            dt = datetime.fromisoformat(wl)
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=timezone.utc)
+        except (ValueError, TypeError):
+            continue
+        days = (now - dt).days
+        months = days / 30.44
+        cad = e["data"].get("cadence") or {}
+        for cp, m in (("m3", 3), ("m6", 6), ("m12", 12)):
+            if months >= m and cad.get(cp) in (None, ""):
+                out.append({"id": e["id"], "name": e["data"].get("name", ""),
+                            "etype": e["etype"], "owner": _owner_of(e["data"]),
+                            "checkpoint": cp, "month": m, "went_live_at": wl,
+                            "overdue_days": int(days - m * 30.44)})
+    out.sort(key=lambda r: r["overdue_days"], reverse=True)
+    return {"reminders": out, "count": len(out)}
 
 
 @api.get("/meta/framework")

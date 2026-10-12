@@ -1,6 +1,6 @@
 """Idempotent demo seed. All demo records are flagged is_demo=True and clearly labeled."""
 import os
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from db import db
 from auth import hash_password, verify_password
 
@@ -401,13 +401,17 @@ async def seed_demo(force=False):
     # ---- Lifecycle + benefit enrichment for pipeline & dashboards ----
     STAGE_KEYS = ["discovery", "assessing", "alternatives", "offer", "approved",
                   "in_progress", "live", "realized"]
+    def days_ago(n):
+        return (datetime.now(timezone.utc) - timedelta(days=n)).isoformat()
     # Deterministic stage + ROI data so the pipeline and dashboards have honest, varied numbers.
     stage_plan = {
         "init-nw-1": ("live", {"expected_benefit": 60000, "realized_benefit": 38000,
                                "time_freed_hours": 320, "hourly_rate": 45,
-                               "cadence": {"m3": 12000, "m6": 26000, "m12": None}}),
+                               "went_live_at": days_ago(220),
+                               "cadence": {"m3": 12000, "m6": None, "m12": None}}),
         "init-nw-customer": ("realized", {"expected_benefit": 40000, "realized_benefit": 44000,
                                           "time_freed_hours": 200, "hourly_rate": 40,
+                                          "went_live_at": days_ago(400),
                                           "cadence": {"m3": 15000, "m6": 30000, "m12": 44000}}),
         "init-nw-marketing": ("in_progress", {"expected_benefit": 30000, "time_freed_hours": 120, "hourly_rate": 35}),
         "init-nw-product": ("approved", {"expected_benefit": 50000}),

@@ -177,8 +177,11 @@ export const BENEFIT_KEYS = ["expected_benefit", "realized_benefit", "time_freed
 export const WIDGET_LIBRARY = [
   { type: "roi_rollup", label: "ROI rollup", desc: "Cost vs expected & realized benefit, company-wide" },
   { type: "roi_by_initiative", label: "ROI by initiative", desc: "Per-record cost, benefit, ROI % and status" },
+  { type: "roi_by_area", label: "ROI by area", desc: "Annualized cost across the 11 function-family areas" },
+  { type: "phase_progress", label: "Phase progress", desc: "Records by Phase 1 / 2 / 3 AI ambition" },
   { type: "time_freed", label: "Time freed", desc: "Hours released, optionally valued at a rate" },
   { type: "measurement_cadence", label: "Measurement cadence", desc: "Expected vs realized at 3 / 6 / 12 months" },
+  { type: "reminders", label: "Measurement reminders", desc: "3 / 6 / 12-month checkpoints now due" },
   { type: "lifecycle_throughput", label: "Lifecycle throughput", desc: "Counts by stage — live vs in flight" },
   { type: "inventory_health", label: "Inventory health", desc: "Records by type and what is missing data" },
 ];

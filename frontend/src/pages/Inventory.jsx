@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback, useMemo } from "react";
 import { useScope } from "@/context/ScopeContext";
 import { api, apiErr } from "@/lib/api";
-import { INVENTORY_ETYPES, ETYPE, STAGES, STAGE_LABEL, CANON_AREAS } from "@/lib/constants";
+import { INVENTORY_ETYPES, ETYPE, CANON_AREAS, AREA_BY_KEY } from "@/lib/constants";
 import { StatusBadge, PhasePill, StagePill, DemoTag, Empty } from "@/components/shared";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -14,7 +14,7 @@ import { toast } from "sonner";
 
 export default function Inventory() {
   const { orgId, currentOrg, setSelectedId, search, setSearch, reloadToken, bumpReload,
-    inventoryFilter, setInventoryFilter } = useScope();
+    inventoryFilter, setInventoryFilter, stages, stageLabel } = useScope();
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filters, setFilters] = useState({ etype: "", stage: "", owner: "", area: "", status: "" });
@@ -95,7 +95,7 @@ export default function Inventory() {
         <Sel testid="inv-type" value={filters.etype} onChange={(v) => setFilters({ ...filters, etype: v })} placeholder="All types"
           options={INVENTORY_ETYPES.map((t) => [t, ETYPE[t]?.label || t])} />
         <Sel testid="inv-stage" value={filters.stage} onChange={(v) => setFilters({ ...filters, stage: v })} placeholder="All stages"
-          options={STAGES.map((s) => [s.key, s.label])} />
+          options={stages.map((s) => [s.key, s.label])} />
         <Sel testid="inv-area" value={filters.area} onChange={(v) => setFilters({ ...filters, area: v })} placeholder="All areas"
           options={CANON_AREAS.map((a) => [a.key, a.label])} />
         <Sel testid="inv-owner" value={filters.owner} onChange={(v) => setFilters({ ...filters, owner: v })} placeholder="All owners"
@@ -112,7 +112,7 @@ export default function Inventory() {
           <span className="text-sm font-medium px-1">{sel.size} selected</span>
           {canWrite ? (
             <>
-              <BulkMenu label="Change stage" testid="bulk-stage" options={STAGES.map((s) => [s.key, s.label])} onPick={(v) => bulk("stage", v)} />
+              <BulkMenu label="Change stage" testid="bulk-stage" options={stages.map((s) => [s.key, s.label])} onPick={(v) => bulk("stage", v)} />
               <BulkMenu label="Tag area" testid="bulk-area" options={CANON_AREAS.map((a) => [a.key, a.label])} onPick={(v) => bulk("area", v)} />
               <BulkOwner onPick={(v) => bulk("owner", v)} />
             </>
@@ -132,6 +132,7 @@ export default function Inventory() {
                 <Th label="Type" k="etype" sort={sort} onSort={toggleSort} />
                 <Th label="Stage" k="stage" sort={sort} onSort={toggleSort} />
                 <Th label="Owner" k="owner" sort={sort} onSort={toggleSort} />
+                <th className="text-left px-4 py-2.5 font-medium">Area</th>
                 <th className="text-left px-4 py-2.5 font-medium">Phase</th>
                 <Th label="Status" k="status" sort={sort} onSort={toggleSort} />
               </tr>
@@ -149,8 +150,9 @@ export default function Inventory() {
                       <span className="flex items-center gap-2">{r.data.name || "(untitled)"} {r.is_demo && <DemoTag />}</span>
                     </td>
                     <td className="px-4 py-2.5 text-muted-foreground cursor-pointer capitalize" onClick={() => setSelectedId(r.id)}>{ETYPE[r.etype]?.label || r.etype}</td>
-                    <td className="px-4 py-2.5 cursor-pointer" onClick={() => setSelectedId(r.id)}>{r.data.stage ? <StagePill stage={r.data.stage} /> : <span className="text-muted-foreground text-xs">—</span>}</td>
+                    <td className="px-4 py-2.5 cursor-pointer" onClick={() => setSelectedId(r.id)}>{r.data.stage ? <StagePill stage={r.data.stage} label={stageLabel[r.data.stage]} /> : <span className="text-muted-foreground text-xs">—</span>}</td>
                     <td className="px-4 py-2.5 cursor-pointer" onClick={() => setSelectedId(r.id)}>{owner || <span className="text-muted-foreground">—</span>}</td>
+                    <td className="px-4 py-2.5 cursor-pointer" onClick={() => setSelectedId(r.id)}>{areaCell(r.data.area)}</td>
                     <td className="px-4 py-2.5 cursor-pointer" onClick={() => setSelectedId(r.id)}><PhasePill phase={r.data.phase} /></td>
                     <td className="px-4 py-2.5 cursor-pointer" onClick={() => setSelectedId(r.id)}><StatusBadge status={r.status} /></td>
                   </tr>
@@ -214,3 +216,9 @@ function BulkOwner({ onPick }) {
   );
 }
 const sel_count = (v) => v.trim() ? `"${v.trim()}"` : "owner";
+
+function areaCell(key) {
+  const a = AREA_BY_KEY[key];
+  if (!a) return <span className="text-muted-foreground text-xs">—</span>;
+  return <span className="inline-flex items-center gap-1.5 text-xs"><span className="h-2 w-2 rounded-full" style={{ background: a.color }} />{a.label}</span>;
+}

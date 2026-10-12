@@ -13,6 +13,7 @@ export function ScopeProvider({ children }) {
   const [state, setState] = useState("current"); // current | target
   const [version, setVersion] = useState("draft"); // draft | published
   const [framework, setFramework] = useState(null);
+  const [stages, setStages] = useState([]);
   const [selectedId, setSelectedId] = useState(null); // detail drawer
   const [search, setSearch] = useState("");
   const [active, setActive] = useState("dashboard"); // current main screen
@@ -45,6 +46,12 @@ export function ScopeProvider({ children }) {
   const currentOrg = orgs.find((o) => o.id === orgId) || null;
   const currentWs = workspaces.find((w) => w.id === wsId) || null;
 
+  useEffect(() => {
+    if (!orgId) { setStages([]); return; }
+    api.get(`/organizations/${orgId}/stages`).then((d) => setStages(d.stages)).catch(() => setStages([]));
+  }, [orgId, reloadToken]);
+  const stageLabel = Object.fromEntries(stages.map((s) => [s.key, s.label]));
+
   const refresh = useCallback(() => {
     if (wsId) api.get("/organizations", { workspace_id: wsId }).then(setOrgs);
   }, [wsId]);
@@ -55,7 +62,7 @@ export function ScopeProvider({ children }) {
       currentOrg, currentWs, state, setState, version, setVersion,
       framework, selectedId, setSelectedId, search, setSearch, refresh,
       active, setActive, inventoryFilter, setInventoryFilter, goInventory,
-      reloadToken, bumpReload,
+      reloadToken, bumpReload, stages, stageLabel,
     }}>
       {children}
     </ScopeCtx.Provider>

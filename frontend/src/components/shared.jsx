@@ -22,12 +22,12 @@ export function PhasePill({ phase }) {
   );
 }
 
-export function StagePill({ stage }) {
+export function StagePill({ stage, label }) {
   if (!stage) return <span className="text-[11px] text-muted-foreground">No stage</span>;
   return (
     <span data-testid={`stage-pill-${stage}`}
       className="inline-flex items-center rounded-full border border-gray-300 bg-gray-50 px-2 py-0.5 text-[11px] font-medium text-gray-700">
-      {STAGE_LABEL[stage] || stage}
+      {label || STAGE_LABEL[stage] || stage}
     </span>
   );
 }
