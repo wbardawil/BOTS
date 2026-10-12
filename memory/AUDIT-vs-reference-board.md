@@ -1,3 +1,5 @@
+> Superseded in part: section 0, section 7 and section 8 of this file are replaced by `memory/AUDIT-conducting-ai.md` (2026-10-12). Where the two disagree, that document wins.
+
 # Audit — BOTS vs. the reference board (AI Agent Org Chart / Business Reference Model / AI Development Roadmap / Business Value Chain)
 
 Scope and honesty note: this audit compares BOTS (code on 2026-10-12) with (a) the four-panel
