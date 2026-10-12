@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback, useMemo } from "react";
 import { useScope } from "@/context/ScopeContext";
+import { exportNodeToPng, exportName, stampLine } from "@/lib/exportImage";
 import { api, apiErr } from "@/lib/api";
 import { CANON_AREAS, AREA_BY_KEY, LINE } from "@/lib/constants";
 import { VOCAB, fieldsFor, labelFor } from "@/lib/fields";
@@ -11,14 +12,14 @@ import ImportDialog from "@/components/ImportDialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Cpu, Plus, Upload, Download, X, Table2, LayoutGrid, Inbox, CheckCircle2 } from "lucide-react";
+import { Cpu, Plus, Upload, Download, X, Table2, LayoutGrid, Inbox, CheckCircle2, ImageDown } from "lucide-react";
 import { toast } from "sonner";
 
 const KINDS = VOCAB.system_kind;
 const kindLabel = (k, locale) => labelFor("system", "kind", k, locale) || "Unclassified";
 
 export default function TechInventory() {
-  const { orgId, currentOrg, setSelectedId, search, setSearch, reloadToken, bumpReload } = useScope();
+  const { orgId, currentOrg, setSelectedId, search, setSearch, reloadToken, bumpReload, version } = useScope();
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
   const [mode, setMode] = useState("table");
@@ -105,6 +106,7 @@ export default function TechInventory() {
                 className={`flex items-center gap-1 px-2.5 py-1 rounded text-xs ${mode === m ? "bg-primary text-primary-foreground" : "text-muted-foreground"}`}><I className="h-3.5 w-3.5" />{l}</button>
             ))}
           </div>
+          {mode === "map" && <Button size="sm" variant="outline" data-testid="tech-export-png-btn" onClick={() => exportNodeToPng(document.querySelector('[data-testid="tech-map"] > div'), exportName(currentOrg, "tech-map"), { stamp: stampLine(currentOrg, version) }).then((r) => toast.success(`PNG exported (${r.width}×${r.height})`)).catch((e) => toast.error(`Export failed: ${e.message}`))}><ImageDown className="h-3.5 w-3.5 mr-1.5" /> PNG</Button>}
           <Button size="sm" variant="outline" data-testid="tech-export-btn" onClick={exportCsv}><Download className="h-3.5 w-3.5 mr-1.5" /> CSV</Button>
           {canWrite && <Button size="sm" variant="outline" data-testid="tech-import-btn" onClick={() => setImportOpen(true)}><Upload className="h-3.5 w-3.5 mr-1.5" /> Import</Button>}
           {canWrite && <Button size="sm" data-testid="tech-new-btn" onClick={() => setCreateOpen(true)}><Plus className="h-3.5 w-3.5 mr-1.5" /> New system</Button>}

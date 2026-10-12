@@ -6,7 +6,8 @@ import { VOCAB, labelFor } from "@/lib/fields";
 import { hoursPerMonth } from "@/pages/Intake";
 import { AiTag, DemoTag } from "@/components/shared";
 import { Button } from "@/components/ui/button";
-import { Scale, Sparkles, GripVertical, Lock, LayoutGrid, Table2, Star } from "lucide-react";
+import { Scale, Sparkles, GripVertical, Lock, LayoutGrid, Table2, Star, ImageDown } from "lucide-react";
+import { exportNodeToPng, exportName, stampLine } from "@/lib/exportImage";
 import { toast } from "sonner";
 
 const CLASSES = VOCAB.feasibility_class.map((o) => o.key);
@@ -23,7 +24,7 @@ export const placement = (d) => d.feasibility_class ? { col: d.feasibility_class
  * Unclassified). Matrix mode: areas × classes, the third export target.
  */
 export default function Feasibility() {
-  const { orgId, currentOrg, setSelectedId, reloadToken, bumpReload } = useScope();
+  const { orgId, currentOrg, setSelectedId, reloadToken, bumpReload, version } = useScope();
   const locale = "en";
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -115,6 +116,9 @@ export default function Feasibility() {
               </button>
             ))}
           </div>
+          {mode === "matrix" && rows.length > 0 && (
+            <Button size="sm" variant="outline" data-testid="feas-export-btn" onClick={() => exportNodeToPng(document.querySelector('[data-testid="feas-matrix"] > div'), exportName(currentOrg, "feasibility-matrix"), { stamp: stampLine(currentOrg, version) }).then((r) => toast.success(`PNG exported (${r.width}×${r.height})`)).catch((e) => toast.error(`Export failed: ${e.message}`))}><ImageDown className="h-3.5 w-3.5 mr-1.5" /> PNG</Button>
+          )}
           {canWrite && (
             <Button size="sm" data-testid="feas-run-btn" disabled={!aiEnabled || running || stats.none === 0} onClick={() => run(false)}>
               <Sparkles className="h-3.5 w-3.5 mr-1.5" />

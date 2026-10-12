@@ -13,6 +13,10 @@ docker compose up --build   # MongoDB + API on :8001 + app on :3000
 ./scripts/test_local.sh     # API test suites against the local stack (reads .env)
 ```
 
+New client company (workspace, company, champion seat, capabilities, views) in one command, on the host that
+runs the API: `python scripts/new_client.py --name "Cliente SA" --champion-email ana@cliente.com --champion-name "Ana Ruiz"`.
+The champion's temporary password is printed once on that terminal and nowhere else.
+
 The frontend container serves the built bundle through nginx and proxies `/api` to the backend, so no
 backend URL is baked into the bundle. Data persists in the `mongo-data` volume; `docker compose down -v` wipes it.
 Attachments still use the hosted object-storage integration and do not work offline (provider swap pending).

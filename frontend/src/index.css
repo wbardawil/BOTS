@@ -121,3 +121,15 @@
 .rf-node { font-family: var(--font-sans); }
 @keyframes fadeUp { from { opacity: 0; transform: translateY(6px) } to { opacity: 1; transform: none } }
 .fade-up { animation: fadeUp .3s ease both; }
+
+/* Print: only the one-page summary sheet, A4 portrait. Screen chrome (header, sidebar, drawer, toasts) is dropped. */
+@media print {
+  @page { size: A4 portrait; margin: 10mm; }
+  html, body { background: #fff !important; }
+  header, aside, nav, .no-print, [role="dialog"], [data-sonner-toaster] { display: none !important; }
+  .min-h-screen, main, main > div { min-height: 0 !important; height: auto !important; overflow: visible !important; }
+  [data-testid="summary-page"] { padding: 0 !important; }
+  .print-sheet { border: 0 !important; border-radius: 0 !important; padding: 0 !important; max-width: none !important; box-shadow: none !important; font-size: 11px !important; }
+  .print-sheet, .print-sheet * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .print-sheet section { break-inside: avoid; }
+}

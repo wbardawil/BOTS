@@ -1,8 +1,9 @@
 import { useEffect, useState, useCallback, useRef, useMemo } from "react";
+import { exportNodeToPng, exportName, stampLine } from "@/lib/exportImage";
 import { useScope } from "@/context/ScopeContext";
 import { api, apiErr } from "@/lib/api";
 import { CANON_AREAS, FUNCTION_BRANCHES, PHASES, INK, LINE, MUTED, tint, SOURCING, RISK_LEVELS } from "@/lib/constants";
-import { Maximize2, Plus, Minus, Crosshair, Info, Move, Save, RotateCcw, GripVertical, User, Bot, Database } from "lucide-react";
+import { Maximize2, Plus, Minus, Crosshair, Info, Move, Save, RotateCcw, GripVertical, User, Bot, Database, Download } from "lucide-react";
 import { toast } from "sonner";
 
 // Board geometry (poster coordinates). Visual language: memory/DESIGN.md
@@ -28,7 +29,7 @@ const snap = (n) => Math.round(n / 8) * 8;
 const initials = (s = "") => s.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]).join("").toUpperCase() || "•";
 
 export default function FrameworkCanvas() {
-  const { orgId, currentOrg, state, search, setSelectedId } = useScope();
+  const { orgId, currentOrg, state, search, setSelectedId, version } = useScope();
   const [entities, setEntities] = useState([]);
   const [rels, setRels] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -153,6 +154,16 @@ export default function FrameworkCanvas() {
     </button>
   ) : null;
 
+  const innerRef = useRef(null);
+  const exportPng = async () => {
+    try {
+      toast.message("Rendering the board as PNG…");
+      const r = await exportNodeToPng(innerRef.current, exportName(currentOrg, "framework"), {
+        stamp: stampLine(currentOrg, version), pixelRatio: 1, width: CW + 40, height: CH + 40, style: { transform: "translate(20px, 20px) scale(1)" } });
+      toast.success(`PNG exported (${r.width}×${r.height})`);
+    } catch (e) { toast.error(`Export failed: ${e.message}`); }
+  };
+
   return (
     <div className="h-full flex flex-col">
       <div className="px-6 pt-4 pb-2 flex items-center justify-between flex-wrap gap-2">
@@ -167,6 +178,7 @@ export default function FrameworkCanvas() {
           ))}
           <Ctrl onClick={() => setView((v) => ({ ...v, scale: Math.min(2.5, v.scale * 1.15) }))} testid="fc-zoom-in" icon={Plus} />
           <Ctrl onClick={() => setView((v) => ({ ...v, scale: Math.max(0.12, v.scale * 0.87) }))} testid="fc-zoom-out" icon={Minus} />
+          <Ctrl onClick={exportPng} testid="fc-export-btn" icon={Download}>PNG</Ctrl>
           {canWrite && (
             <Ctrl onClick={() => setArrange((a) => !a)} testid="fc-arrange-toggle" icon={Move} active={arrange}>Arrange</Ctrl>
           )}
@@ -187,7 +199,7 @@ export default function FrameworkCanvas() {
       <div ref={wrapRef} data-testid="framework-canvas"
         onWheel={onWheel} onMouseDown={onDown} onMouseMove={onMove} onMouseUp={onUp} onMouseLeave={onUp}
         className="board flex-1 mx-4 mb-4 rounded-xl overflow-hidden border border-border relative cursor-grab active:cursor-grabbing">
-        <div style={{ position: "absolute", width: CW, height: CH, transformOrigin: "0 0", transform: `translate(${view.tx}px,${view.ty}px) scale(${view.scale})` }}>
+        <div ref={innerRef} style={{ position: "absolute", width: CW, height: CH, transformOrigin: "0 0", transform: `translate(${view.tx}px,${view.ty}px) scale(${view.scale})` }}>
           <div className="absolute rounded-2xl bg-white border border-gray-200 shadow-sm" style={{ left: -16, top: -16, width: CW + 32, height: CH + 32 }} />
 
           {/* A — AI AGENT ORG CHART */}

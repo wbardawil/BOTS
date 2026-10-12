@@ -22,6 +22,7 @@ import Inventory from "@/pages/Inventory";
 import TechInventory from "@/pages/TechInventory";
 import Intake from "@/pages/Intake";
 import Feasibility from "@/pages/Feasibility";
+import Summary from "@/pages/Summary";
 import Pipeline from "@/pages/Pipeline";
 
 export default function Shell() {
@@ -39,6 +40,7 @@ export default function Shell() {
     if (active === "tech") return <TechInventory />;
     if (active === "intake") return <Intake />;
     if (active === "feasibility") return <Feasibility />;
+    if (active === "summary") return <Summary />;
     if (active === "pipeline") return <Pipeline />;
     if (active === "framework") return <FrameworkCanvas />;
     if (active === "operating_map") return <OperatingMap />;
@@ -133,7 +135,7 @@ export default function Shell() {
         {/* Content */}
         <main className="flex-1 min-w-0 flex flex-col">
           {/* mobile tab bar for main views */}
-          <div className="lg:hidden flex gap-1 p-2 overflow-x-auto border-b border-border">
+          <div className="lg:hidden no-print flex gap-1 p-2 overflow-x-auto border-b border-border">
             {MAIN_TABS.map((t) => (
               <button key={t.id} data-testid={`mtab-${t.id}`} onClick={() => setActive(t.id)}
                 className={cn("px-3 py-1.5 rounded-md text-xs whitespace-nowrap",

@@ -136,7 +136,7 @@ export default function ExecutiveOverview() {
   );
 }
 
-function costRollup(items) {
+export function costRollup(items) {
   const r = { total: items.length, costed: 0, uncosted: 0, monthly: 0, oneOff: 0, bySourcing: {},
     byPhase: { 1: { n: 0, monthly: 0, oneOff: 0, uncosted: 0 }, 2: { n: 0, monthly: 0, oneOff: 0, uncosted: 0 }, 3: { n: 0, monthly: 0, oneOff: 0, uncosted: 0 } } };
   items.forEach((e) => {
@@ -149,7 +149,7 @@ function costRollup(items) {
   });
   return r;
 }
-function money(n) { return n ? `USD ${Math.round(n).toLocaleString()}` : "—"; }
+export function money(n) { return n ? `USD ${Math.round(n).toLocaleString()}` : "—"; }
 function Stat({ label, value, sub }) {
   return (
     <div className="card-surface rounded-xl p-4">

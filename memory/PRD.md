@@ -205,6 +205,19 @@ operational readiness; labeled AI + demo data; persistence; optimistic concurren
   and force, review 409, accept, override keeps draft detail, bad class 400, reject clears and re-queues,
   full-form save tolerated / edit rejected).
 
+## Implemented (2026-10-12) — engagement engine M7: PNG exports, printable summary, new-client script
+- `lib/exportImage.js` (html-to-image): any node → PNG with a stamp line (company · Borrador/Publicado · date).
+  Buttons: Framework Canvas "PNG" (captures the full 2640×2060 board with the pan/zoom undone → 2680×2130),
+  Technology Inventory map "PNG", Feasibility matrix "PNG". Inter comes from Google Fonts; if the font CSS
+  cannot be fetched at export time the image falls back to the system sans (self-hosting is the fix).
+- `pages/Summary.jsx` (nav "Executive Summary"): one A4 page in Spanish — inventory by kind with API / MCP /
+  verified counts and monthly spend, what leadership raised (by kind, people, hours per month at stake), the
+  feasibility verdict table, quick wins, cost of the plan (agents and workflows + current systems, annualised),
+  pending items. `@media print` rules in index.css drop the chrome; verified as one PDF page.
+- `scripts/new_client.py`: one command creates workspace, company (locale, currency, industry, engagement
+  stamp), champion user with a one-time temporary password printed on the terminal only, the editor seat,
+  the 11 capabilities and the Operating Map / Roadmap views. Idempotent; `--dry-run`, `--reset-password`.
+
 ## Backlog / Next Stage (deferred per MVP scope)
 - P1: richer playbook editor; initiative workstreams per company; invitations/revocation UI;
   per-request membership caching (N+1); split server.py into routers.

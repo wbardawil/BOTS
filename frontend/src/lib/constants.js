@@ -54,6 +54,7 @@ export const MAIN_TABS = [
   { id: "operating_map", label: "Operating Map", icon: GitBranch },
   { id: "roadmap", label: "Transformation Roadmap", icon: Rocket },
   { id: "executive", label: "Executive Overview", icon: LineChart },
+  { id: "summary", label: "Executive Summary", icon: FileText },
 ];
 
 export const SECONDARY_NAV = [
