@@ -189,7 +189,7 @@ function TabBody({ tab, ent, form, setForm, edit, audit, reload, canWrite }) {
 
   if (tab === "Overview") {
     const keys = Object.keys(d).filter((k) => !HIDE_KEYS.includes(k) &&
-      !["allowed_actions", "prohibited_actions", "human_owner", "operational_owner", "approval_requirements", "escalation"].includes(k) &&
+      !["allowed_actions", "prohibited_actions", "human_owner", "operational_owner", "owner_email", "approval_requirements", "escalation"].includes(k) &&
       !SOURCING_RISK_KEYS.includes(k));
     return (
       <div className="space-y-5">
@@ -199,7 +199,7 @@ function TabBody({ tab, ent, form, setForm, edit, audit, reload, canWrite }) {
     );
   }
   if (tab === "Responsibilities")
-    return <EditableFields keys={["human_owner", "operational_owner", "owner", "assignee", "approver", "allowed_actions", "prohibited_actions", "approval_requirements", "escalation", "exceptions"]} />;
+    return <EditableFields keys={["human_owner", "operational_owner", "owner", "owner_email", "assignee", "approver", "allowed_actions", "prohibited_actions", "approval_requirements", "escalation", "exceptions"]} />;
   if (tab === "Workflow") {
     const steps = d.steps;
     if (!steps) return <Muted>No workflow steps on this record. Open a Workflow record to see ordered steps.</Muted>;

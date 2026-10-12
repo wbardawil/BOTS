@@ -4,11 +4,13 @@ load_dotenv(Path(__file__).parent / ".env")
 
 import os
 import secrets
+import hmac
+import re
 import logging
 from datetime import datetime, timezone
 from typing import Optional, List
 
-from fastapi import FastAPI, APIRouter, HTTPException, Depends, Query, UploadFile, File
+from fastapi import FastAPI, APIRouter, HTTPException, Depends, Query, UploadFile, File, Header, BackgroundTasks
 from fastapi.responses import JSONResponse, Response
 from starlette.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
@@ -20,6 +22,7 @@ import access
 from access import require_read, require_write, accessible_org_ids, accessible_workspace_ids, org_role
 import seed as seed_module
 import storage
+from email_util import send_email
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("bots")
@@ -1047,6 +1050,156 @@ async def measurement_reminders(org_id: str, user: dict = Depends(get_current_us
                             "overdue_days": int(days - m * 30.44)})
     out.sort(key=lambda r: r["overdue_days"], reverse=True)
     return {"reminders": out, "count": len(out)}
+
+
+# ---------------- Roadmap templates (one-click Co-Pilot → Brain → Autonomous per area) ----------------
+ROADMAP_STEPS = [
+    {"phase": 1, "step": "AI Co-Pilot",
+     "problem": "Manual, repetitive tasks are slow and vary in quality.",
+     "deliverables": "Pilot a human-directed co-pilot on one high-volume task; revise the SOP."},
+    {"phase": 2, "step": "AI Brain",
+     "problem": "Team knowledge is scattered; the co-pilot lacks governed context.",
+     "deliverables": "Organize the knowledge base into a governed brain supporting authorized workflows."},
+    {"phase": 3, "step": "Autonomous Agents",
+     "problem": "Selected workflows are ready to run within approved boundaries.",
+     "deliverables": "Enable bounded autonomous execution with human escalation and audit."},
+]
+
+
+class RoadmapTemplateIn(BaseModel):
+    areas: Optional[List[str]] = None
+
+
+@api.post("/organizations/{org_id}/roadmap-template")
+async def seed_roadmap_template(org_id: str, body: RoadmapTemplateIn, user: dict = Depends(get_current_user)):
+    await require_write(user, org_id)
+    org = clean(await db.organizations.find_one({"id": org_id}))
+    if not org:
+        raise HTTPException(404, "Organization not found")
+    area_label = dict(zip(seed_module.CANON_KEYS, seed_module.CAPABILITY_LIBRARY))
+    areas = body.areas or seed_module.CANON_KEYS
+    created, skipped = 0, 0
+    for ak in areas:
+        label = area_label.get(ak, ak)
+        for st in ROADMAP_STEPS:
+            exists = await db.entities.find_one({
+                "organization_id": org_id, "etype": "initiative", "archived": False,
+                "data.template": True, "data.area": ak, "data.phase": st["phase"]})
+            if exists:
+                skipped += 1
+                continue
+            doc = {
+                "id": secrets.token_hex(12), "etype": "initiative",
+                "organization_id": org_id, "workspace_id": org["workspace_id"],
+                "data": {"name": f"{label} — {st['step']}", "area": ak, "phase": st["phase"],
+                         "stage": "discovery", "status": "planned", "template": True,
+                         "business_problem": st["problem"], "deliverables": st["deliverables"],
+                         "stage_history": [{"stage": "discovery", "at": now_iso(),
+                                            "by": user.get("name"), "note": "roadmap template"}]},
+                "status": "draft", "state": None, "version": 1, "is_demo": False,
+                "archived": False, "created_at": now_iso(), "updated_at": now_iso(),
+                "last_reviewed_at": None,
+            }
+            await db.entities.insert_one(doc)
+            created += 1
+    await audit(user, org_id, "roadmap_template", "initiative", org_id, f"{created} created")
+    return {"ok": True, "created": created, "skipped": skipped}
+
+
+# ---------------- Scheduled measurement-checkpoint nudges (email) ----------------
+CRON_SECRET = os.environ.get("WEBHOOK_CRON_SECRET")
+_EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+
+
+async def _org_admin_emails(org_id, ws_id):
+    emails = set()
+    for u in await db.users.find({"global_role": "platform_admin"}).to_list(1000):
+        if u.get("email"):
+            emails.add(u["email"])
+    q = {"$or": [{"scope_type": "organization", "scope_id": org_id, "role": "company_admin"},
+                 {"scope_type": "workspace", "scope_id": ws_id, "role": "workspace_admin"}]}
+    for m in await db.memberships.find(q).to_list(1000):
+        u = await db.users.find_one({"id": m["user_id"]})
+        if u and u.get("email"):
+            emails.add(u["email"])
+    return list(emails)
+
+
+def _nudge_html(org_name, items):
+    from html import escape
+    rows = "".join(
+        f'<tr><td style="padding:6px 10px;border-bottom:1px solid #e5e7eb">{escape(e["data"].get("name",""))}</td>'
+        f'<td style="padding:6px 10px;border-bottom:1px solid #e5e7eb">{m}-month checkpoint</td>'
+        f'<td style="padding:6px 10px;border-bottom:1px solid #e5e7eb;color:#b45309">{escape(str(e["data"].get("owner") or e["data"].get("human_owner") or "unassigned"))}</td></tr>'
+        for (e, cp, m) in items)
+    return (f'<table role="presentation" width="100%"><tr><td style="padding:24px;font-family:Arial,sans-serif;color:#111827">'
+            f'<p style="font-size:16px;font-weight:700">Measurement checkpoints due — {escape(org_name)}</p>'
+            f'<p style="font-size:13px;color:#374151">These records went Live and a 3 / 6 / 12-month checkpoint is now due. '
+            f'Open BOTS and record the realized benefit so ROI stays trustworthy.</p>'
+            f'<table style="border-collapse:collapse;width:100%;font-size:13px"><tr style="text-align:left;color:#6b7280">'
+            f'<th style="padding:6px 10px">Record</th><th style="padding:6px 10px">Checkpoint</th><th style="padding:6px 10px">Owner</th></tr>'
+            f'{rows}</table>'
+            f'<p style="font-size:12px;color:#888;margin-top:16px">Sent by BOTS. We never ask for your password or payment details by email.</p>'
+            f'</td></tr></table>')
+
+
+async def _run_checkpoint_nudges():
+    now = datetime.now(timezone.utc)
+    sent = 0
+    for org in await db.organizations.find({}).to_list(5000):
+        org = clean(org)
+        ents = [clean(e) for e in await db.entities.find(
+            {"organization_id": org["id"], "archived": False,
+             "etype": {"$in": ["initiative", "opportunity", "agent"]}}).to_list(10000)]
+        fresh = []
+        for e in ents:
+            wl = e["data"].get("went_live_at")
+            if not wl:
+                continue
+            try:
+                dt = datetime.fromisoformat(wl)
+                if dt.tzinfo is None:
+                    dt = dt.replace(tzinfo=timezone.utc)
+            except (ValueError, TypeError):
+                continue
+            months = (now - dt).days / 30.44
+            cad = e["data"].get("cadence") or {}
+            for cp, m in (("m3", 3), ("m6", 6), ("m12", 12)):
+                if months >= m and cad.get(cp) in (None, ""):
+                    key = f"{e['id']}:{cp}"
+                    if await db.reminder_sent.find_one({"key": key}):
+                        continue
+                    fresh.append((e, cp, m, key))
+        if not fresh:
+            continue
+        admin_emails = await _org_admin_emails(org["id"], org.get("workspace_id"))
+        buckets = {}
+        for (e, cp, m, key) in fresh:
+            oe = e["data"].get("owner_email")
+            recips = [oe] if (oe and _EMAIL_RE.match(oe)) else admin_emails
+            for r in recips:
+                buckets.setdefault(r, []).append((e, cp, m))
+        for email, items in buckets.items():
+            try:
+                await send_email(to=email, subject=f"{len(items)} measurement checkpoint(s) due — {org['name']}",
+                                 html=_nudge_html(org["name"], items))
+                sent += 1
+            except Exception as ex:
+                logger.warning(f"Nudge email to {email} failed: {ex}")
+        for (e, cp, m, key) in fresh:
+            await db.reminder_sent.update_one({"key": key}, {"$set": {"key": key, "at": now_iso()}}, upsert=True)
+    logger.info(f"Checkpoint nudges: emailed {sent} recipient(s)")
+    return sent
+
+
+@api.post("/cron/checkpoint-nudges")
+async def cron_checkpoint_nudges(background: BackgroundTasks, authorization: str = Header(None)):
+    # Cron endpoints must ack 2xx immediately; enqueue/background the actual work.
+    token = authorization[7:] if authorization and authorization.startswith("Bearer ") else ""
+    if not CRON_SECRET or not hmac.compare_digest(token, CRON_SECRET):
+        raise HTTPException(401, "Unauthorized")
+    background.add_task(_run_checkpoint_nudges)
+    return {"ok": True, "queued": True}
 
 
 @api.get("/meta/framework")
