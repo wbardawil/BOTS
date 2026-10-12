@@ -115,6 +115,8 @@ Control sweep ("under my company's control" is under-audited; all verified today
 | Test defaults to a third-party preview host | backend/tests/backend_test.py:6, test_layout_roadmap.py:6 default BASE_URL to *.preview.emergentagent.com | default to localhost, require env |
 | Vendor-named test ids and docs | frontend/src/constants/testIds/auth.js:12, home.js:5; DESIGN.md:98 "Prompt to paste into Emergent" | rename |
 | LLM key and SDK | backend/ai.py:14, 52-53 EMERGENT_LLM_KEY, emergentintegrations | replace with a provider key Arkiva holds |
+| Object storage for attachments | backend/storage.py: integrations.emergentagent.com, authenticated with EMERGENT_LLM_KEY (added by Emergent on 2026-10-12, merged in 935afe2) | replace with S3-compatible storage Arkiva owns (boto3 is already in requirements); keep the same put/get interface |
+| Transactional email for reminders | backend/email_util.py: integrations.emergentagent.com with EMERGENT_EMAIL_KEY; .emergent/crons.yml schedules POST /api/cron/checkpoint-nudges daily | replace with an SMTP or email API account Arkiva owns; move the schedule to Arkiva's scheduler when hosting moves |
 | Hosting, domain, DB | db.py:4-5 reads MONGO_URL and DB_NAME; where Mongo and the app run, and who owns those accounts, is not in the repo | confirm Arkiva owns the accounts; move if not |
 
 Never copy: "Conducting", conductor, orchestra or baton imagery; the names "AI-Native Company Design", "Transformation Playbook", "Quick Day-1 Wins", "Education Series"; any number or testimonial; their regime bullet verbatim ("EU AI Act Article 22" is plausibly a conflation with GDPR Article 22, inference, verify); any text from their FigJam file or lessons. Not legal advice; have counsel review before public launch.
