@@ -22,16 +22,18 @@ export default function FrameworkCanvas() {
   const { orgId, currentOrg, state, search, setSelectedId } = useScope();
   const [entities, setEntities] = useState([]);
   const [rels, setRels] = useState([]);
+  const [loading, setLoading] = useState(true);
   const wrapRef = useRef(null);
   const [view, setView] = useState({ scale: 0.35, tx: 0, ty: 0 });
   const drag = useRef(null);
 
   const load = useCallback(() => {
     if (!orgId) return;
+    setLoading(true);
     Promise.all([
       api.get("/entities", { organization_id: orgId }),
       api.get("/relationships", { organization_id: orgId }),
-    ]).then(([es, rs]) => { setEntities(es); setRels(rs); });
+    ]).then(([es, rs]) => { setEntities(es); setRels(rs); }).finally(() => setLoading(false));
   }, [orgId]);
   useEffect(load, [load]);
 
@@ -100,8 +102,8 @@ export default function FrameworkCanvas() {
           {[["A", "Org chart"], ["B", "Reference model"], ["C", "Roadmap"], ["D", "Value chain"]].map(([k, l]) => (
             <Ctrl key={k} onClick={() => fit(RECTS[k])} testid={`fc-fit-${k}`} icon={Crosshair}>{l}</Ctrl>
           ))}
-          <Ctrl onClick={() => setView((v) => ({ ...v, scale: Math.min(2.5, v.scale * 1.15) }))} icon={Plus} />
-          <Ctrl onClick={() => setView((v) => ({ ...v, scale: Math.max(0.12, v.scale * 0.87) }))} icon={Minus} />
+          <Ctrl onClick={() => setView((v) => ({ ...v, scale: Math.min(2.5, v.scale * 1.15) }))} testid="fc-zoom-in" icon={Plus} />
+          <Ctrl onClick={() => setView((v) => ({ ...v, scale: Math.max(0.12, v.scale * 0.87) }))} testid="fc-zoom-out" icon={Minus} />
         </div>
       </div>
 
@@ -302,6 +304,11 @@ export default function FrameworkCanvas() {
         <div className="absolute bottom-2 left-2 flex items-center gap-1.5 text-[11px] text-white/60 bg-black/40 rounded px-2 py-1">
           <Info className="h-3 w-3" /> Zoom {(view.scale * 100).toFixed(0)}% · all four sections are live records — edits reflect everywhere
         </div>
+        {loading && (
+          <div className="absolute inset-0 flex items-center justify-center bg-[#070b14]/80 text-white/80 text-sm" data-testid="fc-loading">
+            Loading framework…
+          </div>
+        )}
       </div>
     </div>
   );

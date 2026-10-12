@@ -1,0 +1,33 @@
+{
+  "summary": "Frontend-only testing of the new 'Living Framework' canvas (FrameworkCanvas.jsx) for BOTS. All 10 acceptance criteria from the review request were verified. Owner login → default tab is 'framework' (nav-framework has active primary class, framework-canvas rendered). All four sections A/B/C/D render inside one white board. Fit controls (fc-fit-all, fc-fit-A, fc-fit-B, fc-fit-C, fc-fit-D) work and change the pan/zoom. Zoom +/- buttons present and clickable. Same record appears 3× on the canvas: fc-rec-agent-nw-leadqual chip count = 3 (org chart + reference model + value chain). Clicking a canvas chip opens detail-drawer with drawer-title 'Lead Qualification Agent' and the standard Overview/Responsibilities/… tabs — no navigation away from canvas. In-place edit persists: drawer-edit-btn → edited name to '…[TESTED]' → drawer-save-btn → success toast 'Saved. Live views now reflect this change.' After full page reload all 3 duplicate chips showed the new name — confirming (a) persistence and (b) edit-once-reflects-everywhere. State toggle (state-toggle-current/target) works: TARGET label appears in reference-model panels after switching. Company switching: owner has access to all 4 workspaces; switching workspace to Meridian Capital and then scope-selector → org-o-vertex loads Vertex Software with its OWN 11 chips and 0 Northwind chips. All secondary nav tabs (nav-operating_map, nav-capability_model, nav-value_chain, nav-roadmap, nav-executive) render without errors. Unassigned-owner ⚠ markers visible (Compliance Report Agent in Legal lane).",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "FrameworkCanvas header controls", "issues": ["Zoom +/- buttons have no data-testid (only Icon props); testing had to use ~ sibling selector relative to fc-fit-D. Minor — consider adding testid='fc-zoom-in' / 'fc-zoom-out' for stable automation."]},
+      {"screen": "Scope selector (cross-workspace)", "issues": ["scope-selector only lists orgs within the currently selected workspace. The review request's 'switch from Northwind to Vertex via org-o-vertex' required first switching workspace from Northwind Standalone → Meridian Capital via workspace-switcher. This matches the backend workspace model, but may be confusing to the test spec; worth documenting or exposing a flat 'all orgs I can access' switcher for platform_admin."]},
+      {"screen": "Canvas chip click (transformed layer)", "issues": ["Playwright reports 'Element is outside of viewport' even when chip is visually in view because of CSS transform scale on the pan/zoom container. Had to use evaluate() JS click. Not a user-facing bug, but affects automated tests. Could wrap chips in a scroll-into-view-safe layer or set pointer-events-safe transform."]}
+    ]
+  },
+  "test_report_links": ["/app/backend/tests/backend_test.py (prior iteration regression)", "/app/test_reports/iteration_1.json"],
+  "action_items": [
+    "(Minor, test ergonomics) Add data-testid='fc-zoom-in' / 'fc-zoom-out' to the +/- buttons in FrameworkCanvas controls.",
+    "(Minor, UX) Consider whether platform_admin should see all orgs across workspaces in scope-selector without manual workspace switching — current behaviour is strictly workspace-scoped."
+  ],
+  "critical_code_review_comments": [
+    "FrameworkCanvas.jsx `areaOf` propagation does 4 fixed passes over all relationships — O(4·R·E) but acceptable for current scale. For large orgs (>10k rels) consider a BFS from capability nodes.",
+    "`recs(area,type)` is called many times per render inside nested maps; memoise by (area,type) if canvas becomes slower.",
+    "Chip component defined inside the parent render function — recreated on every re-render causing full subtree remount. Hoist Chip (and ExecCard/BranchCell/PanelGroup) above the component or memoise.",
+    "Fatal if entities respond before `wrapRef.current` due to the fit effect depending on `fit` and `orgId` only — safe here but relies on 60ms timeout; use ResizeObserver for robust fit on first paint.",
+    "No loading/empty state while entities fetch — a brief flash of empty sections appears right after org switch."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "n/a (not retested; iteration_1 was 100%)", "frontend": "100% (10/10 acceptance criteria verified)"},
+  "test_credentials": "Used owner wadi.bardawil@gmail.com / Bots!Admin2026 from /app/memory/test_credentials.md.",
+  "seed_data_creation": "Transiently renamed Northwind agent-nw-leadqual to '… [TESTED]' then restored to 'Lead Qualification Agent'. No lingering test data.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Framework canvas uses CSS transform scale; Playwright's auto-scroll considers chips 'outside viewport' even when visible. Use `page.evaluate(() => document.querySelector('[data-testid=...]').click())` to bypass. To test cross-workspace org switching, click workspace-switcher first (data-testid='ws-<id>' or by text 'Meridian Capital') then scope-selector → org-<id>. Owner has 4 workspaces (Northwind Standalone, Atlas Holdings Group, Meridian Capital, Isolation Test Tenant).",
+  "rca of the issue": "n/a — no bugs found. All review-request assertions passed."
+}
