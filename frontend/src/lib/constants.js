@@ -1,6 +1,7 @@
 import {
   Target, Layers, GitBranch, Workflow, Bot, Database, BookOpen, Rocket,
   ClipboardCheck, Users, LineChart, Gavel, Settings, Building2, Boxes, Cpu, FileText, LayoutDashboard,
+  LayoutGrid, Columns3, FolderSearch,
 } from "lucide-react";
 
 // ---- Design tokens (mirror of memory/DESIGN.md §2) ----------------------------------------
@@ -43,6 +44,9 @@ export const ETYPE = {
 };
 
 export const MAIN_TABS = [
+  { id: "dashboard", label: "Dashboards", icon: LayoutGrid },
+  { id: "inventory", label: "Inventory", icon: FolderSearch },
+  { id: "pipeline", label: "Pipeline", icon: Columns3 },
   { id: "framework", label: "Framework Canvas", icon: LayoutDashboard },
   { id: "operating_map", label: "Operating Map", icon: GitBranch },
   { id: "capability_model", label: "Capability Model", icon: Layers },
@@ -139,6 +143,48 @@ export const SELECT_FIELDS = {
   risk_category: RISK_CATEGORIES,
   data_sensitivity: Object.keys(DATA_SENSITIVITY),
 };
-export const NUMERIC_FIELDS = ["cost_estimate", "budget", "baseline", "target", "candidate_phase"];
+export const NUMERIC_FIELDS = ["cost_estimate", "budget", "baseline", "target", "candidate_phase",
+  "expected_benefit", "realized_benefit", "time_freed_hours", "hourly_rate"];
 export const SOURCING_RISK_KEYS = ["sourcing", "vendor", "cost_estimate", "cost_period", "currency", "cost_notes",
   "risk_level", "risk_category", "data_sensitivity", "regulatory_flags", "required_controls", "risk_notes"];
+
+// ---- Lifecycle pipeline (fixed 8 stages for this release) ----------------------------------
+export const STAGES = [
+  { key: "discovery", label: "Discovery" },
+  { key: "assessing", label: "Assessing" },
+  { key: "alternatives", label: "Alternatives" },
+  { key: "offer", label: "Offer" },
+  { key: "approved", label: "Approved" },
+  { key: "in_progress", label: "In progress" },
+  { key: "live", label: "Live" },
+  { key: "realized", label: "Realized" },
+];
+export const STAGE_KEYS = STAGES.map((s) => s.key);
+export const STAGE_LABEL = Object.fromEntries(STAGES.map((s) => [s.key, s.label]));
+export const GATED_STAGES = new Set(["approved", "in_progress", "live", "realized"]);
+export const PIPELINE_ETYPES = ["initiative", "opportunity"];
+
+// Record types managed in the central inventory
+export const INVENTORY_ETYPES = ["initiative", "opportunity", "agent", "workflow", "system",
+  "knowledge_source", "playbook", "metric", "evidence", "decision", "adoption_assignment",
+  "capability", "process", "role"];
+
+// Keys the drawer renders as fields on the Lifecycle & Value tab
+export const BENEFIT_KEYS = ["expected_benefit", "realized_benefit", "time_freed_hours",
+  "hourly_rate", "went_live_at"];
+
+// ---- Adjustable dashboard widget library -----------------------------------------------------
+export const WIDGET_LIBRARY = [
+  { type: "roi_rollup", label: "ROI rollup", desc: "Cost vs expected & realized benefit, company-wide" },
+  { type: "roi_by_initiative", label: "ROI by initiative", desc: "Per-record cost, benefit, ROI % and status" },
+  { type: "roi_by_area", label: "ROI by area", desc: "Annualized cost across the 11 function-family areas" },
+  { type: "phase_progress", label: "Phase progress", desc: "Records by Phase 1 / 2 / 3 AI ambition" },
+  { type: "time_freed", label: "Time freed", desc: "Hours released, optionally valued at a rate" },
+  { type: "measurement_cadence", label: "Measurement cadence", desc: "Expected vs realized at 3 / 6 / 12 months" },
+  { type: "reminders", label: "Measurement reminders", desc: "3 / 6 / 12-month checkpoints now due" },
+  { type: "lifecycle_throughput", label: "Lifecycle throughput", desc: "Counts by stage — live vs in flight" },
+  { type: "inventory_health", label: "Inventory health", desc: "Records by type and what is missing data" },
+];
+export const WIDGET_META = Object.fromEntries(WIDGET_LIBRARY.map((w) => [w.type, w]));
+export const WIDGET_SPAN = { sm: "md:col-span-2", md: "md:col-span-3", lg: "md:col-span-6" };
+export const WIDGET_SIZES = ["sm", "md", "lg"];

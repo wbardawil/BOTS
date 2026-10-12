@@ -1,6 +1,6 @@
 """Idempotent demo seed. All demo records are flagged is_demo=True and clearly labeled."""
 import os
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from db import db
 from auth import hash_password, verify_password
 
@@ -407,6 +407,54 @@ async def seed_demo(force=False):
                          "budget": 40000, "currency": "USD",
                          "note": "Group initiative with company-specific workstreams"},
                         status="published", phase=1))
+
+    # ---- Lifecycle + benefit enrichment for pipeline & dashboards ----
+    STAGE_KEYS = ["discovery", "assessing", "alternatives", "offer", "approved",
+                  "in_progress", "live", "realized"]
+    def days_ago(n):
+        return (datetime.now(timezone.utc) - timedelta(days=n)).isoformat()
+    # Deterministic stage + ROI data so the pipeline and dashboards have honest, varied numbers.
+    stage_plan = {
+        "init-nw-1": ("live", {"expected_benefit": 60000, "realized_benefit": 38000,
+                               "time_freed_hours": 320, "hourly_rate": 45,
+                               "went_live_at": days_ago(220),
+                               "cadence": {"m3": 12000, "m6": None, "m12": None}}),
+        "init-nw-customer": ("realized", {"expected_benefit": 40000, "realized_benefit": 44000,
+                                          "time_freed_hours": 200, "hourly_rate": 40,
+                                          "went_live_at": days_ago(400),
+                                          "cadence": {"m3": 15000, "m6": 30000, "m12": 44000}}),
+        "init-nw-marketing": ("in_progress", {"expected_benefit": 30000, "time_freed_hours": 120, "hourly_rate": 35}),
+        "init-nw-product": ("approved", {"expected_benefit": 50000}),
+        "init-nw-operations": ("offer", {"expected_benefit": 80000, "time_freed_hours": 400, "hourly_rate": 50}),
+        "init-nw-data": ("assessing", {}),
+        "init-nw-tech": ("in_progress", {"expected_benefit": 25000}),
+        "init-nw-finance": ("approved", {"expected_benefit": 35000, "time_freed_hours": 160, "hourly_rate": 55}),
+        "init-nw-hr": ("discovery", {}),
+        "opp-nw-1": ("approved", {"expected_benefit": 20000, "time_freed_hours": 90, "hourly_rate": 45}),
+        "opp-nw-2": ("assessing", {}),
+    }
+    bk_stage = {"customer": "live", "marketing": "offer", "product": "assessing",
+                "operations": "in_progress", "data": "discovery", "tech": "approved",
+                "finance": "alternatives", "hr": "discovery"}
+    for e in entities:
+        if e["etype"] not in ("initiative", "opportunity"):
+            continue
+        eid = e["id"]
+        if eid in stage_plan:
+            stg, extra = stage_plan[eid]
+            e["data"].update(extra)
+        elif eid.startswith("opp-nw-") and e["data"].get("area") in bk_stage:
+            stg = bk_stage[e["data"]["area"]]
+        else:
+            stg = "discovery"
+        e["data"]["stage"] = stg
+        idx = STAGE_KEYS.index(stg)
+        e["data"]["stage_history"] = [
+            {"stage": STAGE_KEYS[i], "at": now(), "by": "Wadi Bardawil", "note": "demo"}
+            for i in range(idx + 1)
+        ]
+        if idx >= STAGE_KEYS.index("live"):
+            e["data"].setdefault("went_live_at", now())
 
     # bulk insert
     await db.workspaces.insert_many(workspaces)

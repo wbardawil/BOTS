@@ -1,0 +1,8 @@
+crons:
+  - name: checkpoint-nudges
+    description: "Emails record owners/company admins daily when a 3/6/12-month measurement checkpoint is due"
+    cron: "0 8 * * *"
+    endpoint: "{{BASE_URL}}/api/cron/checkpoint-nudges"
+    method: POST
+    # Cron endpoints must ack 2xx immediately; enqueue/background the actual work.
+    enabled: true

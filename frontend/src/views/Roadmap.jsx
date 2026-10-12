@@ -1,18 +1,22 @@
 import { useEffect, useState, useCallback } from "react";
 import { useScope } from "@/context/ScopeContext";
-import { api } from "@/lib/api";
+import { api, apiErr } from "@/lib/api";
 import { StatusBadge, Empty } from "@/components/shared";
 import { PHASE_META } from "@/lib/constants";
-import { Rocket } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Rocket, Wand2 } from "lucide-react";
+import { toast } from "sonner";
 
 const PHASES = [1, 2, 3];
 const PHASE_LABEL = { 1: "Phase 1 · AI Co-Pilots", 2: "Phase 2 · AI Brains", 3: "Phase 3 · Autonomous" };
 
 export default function Roadmap() {
-  const { orgId, setSelectedId } = useScope();
+  const { orgId, currentOrg, setSelectedId, bumpReload } = useScope();
   const [mode, setMode] = useState("matrix");
   const [inits, setInits] = useState([]);
   const [agents, setAgents] = useState([]);
+  const [seeding, setSeeding] = useState(false);
+  const canWrite = ["platform_admin", "workspace_admin", "company_admin", "company_editor"].includes(currentOrg?.role);
 
   const load = useCallback(() => {
     if (!orgId) return;
@@ -22,6 +26,17 @@ export default function Roadmap() {
     ]).then(([is, ag]) => { setInits(is); setAgents(ag); });
   }, [orgId]);
   useEffect(load, [load]);
+
+  const seedTemplate = async () => {
+    setSeeding(true);
+    try {
+      const r = await api.post(`/organizations/${orgId}/roadmap-template`, {});
+      toast.success(r.created ? `Seeded ${r.created} draft initiatives (Co-Pilot → Brain → Autonomous per area).` : "Template already seeded — nothing to add.");
+      load(); bumpReload();
+    } catch (e) { toast.error(apiErr(e.response?.data?.detail)); }
+    finally { setSeeding(false); }
+  };
+
   if (!orgId) return <Empty icon={Rocket} title="Select a company" />;
 
   const items = [...inits.map((i) => ({ ...i, kind: "Initiative" })), ...agents.map((a) => ({ ...a, kind: "Agent" }))];
@@ -33,11 +48,18 @@ export default function Roadmap() {
           <h1 className="font-display text-2xl font-bold">Transformation Roadmap</h1>
           <p className="text-sm text-muted-foreground">Initiatives and workflows across phases. Phase ≠ deployment status.</p>
         </div>
-        <div className="flex gap-1 rounded-md border border-border p-0.5 bg-muted/40">
-          {["matrix", "table"].map((m) => (
-            <button key={m} data-testid={`roadmap-${m}`} onClick={() => setMode(m)}
-              className={`px-3 py-1 rounded text-xs capitalize ${mode === m ? "bg-primary text-primary-foreground" : "text-muted-foreground"}`}>{m}</button>
-          ))}
+        <div className="flex items-center gap-2">
+          {canWrite && (
+            <Button size="sm" variant="outline" data-testid="roadmap-seed-template" onClick={seedTemplate} disabled={seeding}>
+              <Wand2 className="h-3.5 w-3.5 mr-1.5" /> {seeding ? "Seeding…" : "Seed roadmap template"}
+            </Button>
+          )}
+          <div className="flex gap-1 rounded-md border border-border p-0.5 bg-muted/40">
+            {["matrix", "table"].map((m) => (
+              <button key={m} data-testid={`roadmap-${m}`} onClick={() => setMode(m)}
+                className={`px-3 py-1 rounded text-xs capitalize ${mode === m ? "bg-primary text-primary-foreground" : "text-muted-foreground"}`}>{m}</button>
+            ))}
+          </div>
         </div>
       </div>
 

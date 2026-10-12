@@ -1,5 +1,5 @@
 import { cn } from "@/lib/utils";
-import { STATUS_COLORS, PHASE_META, SOURCING, RISK_LEVELS } from "@/lib/constants";
+import { STATUS_COLORS, PHASE_META, SOURCING, RISK_LEVELS, STAGE_LABEL } from "@/lib/constants";
 
 export function StatusBadge({ status }) {
   if (!status) return null;
@@ -18,6 +18,16 @@ export function PhasePill({ phase }) {
     <span className="inline-flex items-center rounded-md px-2 py-0.5 text-[11px] font-medium border bg-white"
       style={{ color: m.hex, borderColor: m.hex, borderStyle: m.dashed ? "dashed" : "solid" }}>
       Phase {phase}
+    </span>
+  );
+}
+
+export function StagePill({ stage, label }) {
+  if (!stage) return <span className="text-[11px] text-muted-foreground">No stage</span>;
+  return (
+    <span data-testid={`stage-pill-${stage}`}
+      className="inline-flex items-center rounded-full border border-gray-300 bg-gray-50 px-2 py-0.5 text-[11px] font-medium text-gray-700">
+      {label || STAGE_LABEL[stage] || stage}
     </span>
   );
 }

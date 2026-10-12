@@ -78,6 +78,44 @@ operational readiness; labeled AI + demo data; persistence; optimistic concurren
   BUY/BUILD/HYBRID tag and a medium/high risk dot on board chips. Regulatory flags are illustrative,
   not legal advice.
 
+## Implemented (2026-06-24) — content, documentation, lifecycle & dashboards (Phase 1)
+- **Documentation attachments** (private per company, Emergent object storage): upload (PDF/Word/Excel/PPT/
+  images/CSV/TXT, 15 MB cap), list, authorized blob download, soft-remove (`is_deleted`). Backend
+  `storage.py`; endpoints `POST/GET /api/entities/{id}/attachments`, `GET /api/attachments/{id}/download`,
+  `DELETE /api/attachments/{id}`. DB is source of truth (`db.attachments`). "Files" tab in the drawer.
+- **Lifecycle pipeline** — eight fixed stages (Discovery→Assessing→Alternatives→Offer→Approved→In
+  progress→Live→Realized) on initiatives/opportunities. `POST /api/entities/{id}/stage` date-stamps each
+  move into `data.stage_history` (who/when/note), sets `went_live_at`. Owner-gated stages
+  (approved+) return a clear blocked reason. `Pipeline.jsx` board: drag + dropdown moves, time-in-stage,
+  read-only for viewers. Drawer "Lifecycle & Value" tab: stage grid, timeline, benefit inputs + 3/6/12 cadence.
+- **Central inventory** (`Inventory.jsx`): all record types, search + filter (type/stage/owner/area/status)
+  + sortable columns + selection with bulk actions (change stage / tag area / assign owner) via
+  `POST /api/entities/bulk` (validated, audited, version-bumped, skips+reports blocked).
+- **Adjustable dynamic dashboards** (`Dashboard.jsx`): add/remove/resize/reorder widgets on a 6-col grid,
+  saved per user (`PUT /api/organizations/{id}/dashboard`), company default publish (admin) + reset.
+  Widget library: ROI rollup, ROI by initiative, time freed, measurement cadence, lifecycle throughput,
+  inventory health. Shared filters + drill-down (widget → drawer / inventory). `GET .../analytics` returns
+  live records + aggregates; ROI math in `lib/analytics.js` keeps missing inputs "not measured yet", never zero.
+- Seed enriched with stages, stage_history, and honest benefit/cadence numbers across Northwind.
+
+## Implemented (2026-06-24b) — framework cohesion + group/config/reminders
+- **Framework cohesion**: Dashboards/Inventory/Pipeline now speak the board's visual language — pipeline
+  cards carry a function-family color left stripe + area label + the Phase pill (AI ambition from the
+  roadmap); dashboards use family hues with new `roi_by_area` (11 canonical areas) and `phase_progress`
+  (grayscale Phase 1/2/3) widgets; inventory gained an Area column with family dots. Documented the
+  model: Phase = AI ambition (Co-Pilot→Brain→Autonomous); Stage = delivery progress; ROI = measurement.
+- **Custom Stages** (per company): `pipeline_stages` on the organization; `GET/PUT /organizations/{id}/stages`
+  (admin-only edit, duplicate-key + remove-with-records guards). Stage move / bulk / analytics / pipeline /
+  inventory / dashboard all read the org's stages via ScopeContext. Settings has a rename/reorder/gate/
+  add/remove editor.
+- **Portfolio ROI dashboards**: `GET /portfolios/{id}/analytics` → per-company cost/expected/realized/ROI +
+  by_area + stage_counts (isolation-aware, deduped). Group Oversight renders a side-by-side comparison with
+  the family-area legend; currencies kept separate.
+- **Measurement Reminders**: `GET /organizations/{id}/reminders` surfaces 3/6/12-month checkpoints due after
+  a record goes Live with a missing realized value; shown as a Dashboard banner + a `reminders` widget.
+  (In-app nudges; scheduled email is a later option.)
+- Verified: /app/backend/tests/test_iteration6.py (17/17) + full frontend flows (testing agent, 100%).
+
 ## Backlog / Next Stage (deferred per MVP scope)
 - P1: richer playbook editor; initiative workstreams per company; invitations/revocation UI;
   per-request membership caching (N+1); split server.py into routers.
