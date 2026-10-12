@@ -1,0 +1,23 @@
+{
+  "summary": "Verified the 'Cost of the plan' card on Executive Overview for Northwind Trading Co. All expected numbers render exactly as specified: Monthly USD 3,370, One-off USD 12,000, Annualised USD 52,440, '11 of 12 agents and workflows costed · 1 without a number yet'. By-sourcing shows BUY 5 / BUILD 1 / HYBRID 5. Per-phase table: Phase 1 (7 items, USD 1,770 monthly, 1 uncosted), Phase 2 (4 items, USD 1,200 monthly, USD 12,000 one-off), Phase 3 (1 item, USD 400 monthly). Other Executive Overview cards (agents 11 / initiatives 9 / opportunities 15 / records 77, living-model flags, changes since last publication) still render without errors. No console errors observed.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Minor: costRollup() in ExecutiveOverview.jsx coerces unknown d.phase to Phase 1 bucket (`r.byPhase[d.phase] ? d.phase : 1`) — acceptable fallback, but may hide bad data.",
+    "money() returns '—' when n is 0 — matches 'missing never zero' contract, but if a user legitimately enters cost_estimate 0 and cost_period monthly, the phase monthly aggregate could still show '—' when rounded total is 0; low impact."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "100% (prev iteration)", "frontend": "100%"},
+  "test_credentials": "wadi.bardawil@gmail.com / Bots!Admin2026 (owner, platform_admin)",
+  "seed_data_creation": "None (demo seed previously re-run by main agent)",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Northwind Standalone workspace currently contains only one organization (Northwind Trading Co, o-northwind). The 'switch to lighter-data company' regression could not be executed because no alternate org exists in the switcher. If a second org is seeded later, re-run that regression; cost card should still render (possibly all '—') without crashing.",
+  "rca of the issue": "N/A — bug previously fixed by pulling main + re-seeding demo so agent/workflow records carry data.cost_estimate values. Verified fix is effective end-to-end."
+}
