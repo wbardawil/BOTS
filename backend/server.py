@@ -8,8 +8,8 @@ import logging
 from datetime import datetime, timezone
 from typing import Optional, List
 
-from fastapi import FastAPI, APIRouter, HTTPException, Depends, Query
-from fastapi.responses import JSONResponse
+from fastapi import FastAPI, APIRouter, HTTPException, Depends, Query, UploadFile, File
+from fastapi.responses import JSONResponse, Response
 from starlette.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
@@ -19,6 +19,7 @@ from ai import ai_router
 import access
 from access import require_read, require_write, accessible_org_ids, accessible_workspace_ids, org_role
 import seed as seed_module
+import storage
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("bots")
@@ -579,6 +580,308 @@ async def reseed(user: dict = Depends(get_current_user)):
     return {"ok": True}
 
 
+# ---------------- Lifecycle pipeline ----------------
+STAGES = [
+    {"key": "discovery", "label": "Discovery"},
+    {"key": "assessing", "label": "Assessing"},
+    {"key": "alternatives", "label": "Alternatives"},
+    {"key": "offer", "label": "Offer"},
+    {"key": "approved", "label": "Approved"},
+    {"key": "in_progress", "label": "In progress"},
+    {"key": "live", "label": "Live"},
+    {"key": "realized", "label": "Realized"},
+]
+STAGE_KEYS = [s["key"] for s in STAGES]
+STAGE_LABELS = {s["key"]: s["label"] for s in STAGES}
+GATED_STAGES = {"approved", "in_progress", "live", "realized"}
+PIPELINE_ETYPES = {"initiative", "opportunity"}
+
+
+def _owner_of(data):
+    return data.get("owner") or data.get("human_owner") or data.get("assignee")
+
+
+def _blocked_reason(etype, data, stage):
+    """Clear reason a stage move is blocked, or None if allowed."""
+    if stage in GATED_STAGES and not _owner_of(data):
+        return f"Assign an owner before moving to “{STAGE_LABELS[stage]}”. Gated stages need an accountable owner."
+    return None
+
+
+class StageIn(BaseModel):
+    stage: str
+    note: str = ""
+    version: int
+
+
+@api.post("/entities/{eid}/stage")
+async def move_stage(eid: str, body: StageIn, user: dict = Depends(get_current_user)):
+    e = clean(await db.entities.find_one({"id": eid}))
+    if not e:
+        raise HTTPException(404, "Not found")
+    await require_write(user, e["organization_id"])
+    if body.version != e["version"]:
+        raise HTTPException(409, "Record changed since you loaded it. Reload and retry.")
+    if body.stage not in STAGE_KEYS:
+        raise HTTPException(400, f"Unknown stage {body.stage}")
+    reason = _blocked_reason(e["etype"], e["data"], body.stage)
+    if reason:
+        raise HTTPException(400, reason)
+    history = list(e["data"].get("stage_history", []))
+    history.append({"stage": body.stage, "at": now_iso(), "by": user.get("name"), "note": body.note})
+    upd = {"data.stage": body.stage, "data.stage_history": history,
+           "version": e["version"] + 1, "updated_at": now_iso()}
+    if body.stage == "live" and not e["data"].get("went_live_at"):
+        upd["data.went_live_at"] = now_iso()
+    await db.entities.update_one({"id": eid}, {"$set": upd})
+    await audit(user, e["organization_id"], "stage_move", e["etype"], eid,
+                f"→ {STAGE_LABELS[body.stage]}")
+    return clean(await db.entities.find_one({"id": eid}))
+
+
+class BulkIn(BaseModel):
+    ids: List[str]
+    action: str  # stage | owner | area
+    value: str
+
+
+@api.post("/entities/bulk")
+async def bulk_action(body: BulkIn, user: dict = Depends(get_current_user)):
+    if body.action not in ("stage", "owner", "area"):
+        raise HTTPException(400, "Unsupported bulk action")
+    if body.action == "stage" and body.value not in STAGE_KEYS:
+        raise HTTPException(400, "Unknown stage")
+    updated, skipped = [], []
+    for eid in body.ids:
+        e = clean(await db.entities.find_one({"id": eid}))
+        if not e:
+            skipped.append({"id": eid, "reason": "not found"})
+            continue
+        try:
+            await require_write(user, e["organization_id"])
+        except HTTPException:
+            skipped.append({"id": eid, "reason": "no write access"})
+            continue
+        if body.action == "stage":
+            reason = _blocked_reason(e["etype"], e["data"], body.value)
+            if reason:
+                skipped.append({"id": eid, "reason": reason})
+                continue
+            history = list(e["data"].get("stage_history", []))
+            history.append({"stage": body.value, "at": now_iso(), "by": user.get("name"), "note": "bulk"})
+            upd = {"data.stage": body.value, "data.stage_history": history}
+            if body.value == "live" and not e["data"].get("went_live_at"):
+                upd["data.went_live_at"] = now_iso()
+        elif body.action == "owner":
+            upd = {"data.owner": body.value}
+        else:
+            upd = {"data.area": body.value}
+        upd["version"] = e["version"] + 1
+        upd["updated_at"] = now_iso()
+        await db.entities.update_one({"id": eid}, {"$set": upd})
+        await audit(user, e["organization_id"], f"bulk_{body.action}", e["etype"], eid, body.value)
+        updated.append(eid)
+    return {"updated": updated, "skipped": skipped}
+
+
+# ---------------- Documentation attachments (private per company) ----------------
+ALLOWED_EXT = {"pdf", "doc", "docx", "xls", "xlsx", "csv", "txt",
+               "png", "jpg", "jpeg", "gif", "webp", "ppt", "pptx"}
+MAX_FILE_BYTES = 15 * 1024 * 1024
+
+
+@api.post("/entities/{eid}/attachments")
+async def upload_attachment(eid: str, file: UploadFile = File(...),
+                            user: dict = Depends(get_current_user)):
+    e = clean(await db.entities.find_one({"id": eid}))
+    if not e:
+        raise HTTPException(404, "Record not found")
+    await require_write(user, e["organization_id"])
+    ext = (file.filename.rsplit(".", 1)[-1].lower() if "." in (file.filename or "") else "")
+    if ext not in ALLOWED_EXT:
+        raise HTTPException(400, f"File type .{ext or '?'} not allowed. Allowed: {', '.join(sorted(ALLOWED_EXT))}.")
+    data = await file.read()
+    if len(data) > MAX_FILE_BYTES:
+        raise HTTPException(400, "File exceeds the 15 MB limit.")
+    if not data:
+        raise HTTPException(400, "Empty file.")
+    path = f"{storage.APP_NAME}/{e['organization_id']}/{eid}/{secrets.token_hex(10)}.{ext}"
+    ctype = file.content_type or "application/octet-stream"
+    try:
+        result = storage.put_object(path, data, ctype)
+    except Exception as ex:
+        raise HTTPException(502, f"Upload failed: {ex}")
+    doc = {
+        "id": secrets.token_hex(12), "organization_id": e["organization_id"], "entity_id": eid,
+        "storage_path": result["path"], "original_filename": file.filename,
+        "content_type": ctype, "size": result.get("size", len(data)),
+        "is_deleted": False, "uploaded_by": user.get("name"), "uploaded_by_id": user["id"],
+        "uploaded_at": now_iso(),
+    }
+    await db.attachments.insert_one(doc)
+    await audit(user, e["organization_id"], "attach", e["etype"], eid, file.filename)
+    return clean(doc)
+
+
+@api.get("/entities/{eid}/attachments")
+async def list_attachments(eid: str, user: dict = Depends(get_current_user)):
+    e = clean(await db.entities.find_one({"id": eid}))
+    if not e:
+        raise HTTPException(404, "Not found")
+    await require_read(user, e["organization_id"])
+    return [clean(a) for a in await db.attachments.find(
+        {"entity_id": eid, "is_deleted": False}).sort("uploaded_at", -1).to_list(500)]
+
+
+@api.get("/attachments/{aid}/download")
+async def download_attachment(aid: str, user: dict = Depends(get_current_user)):
+    a = clean(await db.attachments.find_one({"id": aid, "is_deleted": False}))
+    if not a:
+        raise HTTPException(404, "File not found")
+    await require_read(user, a["organization_id"])
+    try:
+        content, ctype = storage.get_object(a["storage_path"])
+    except Exception as ex:
+        raise HTTPException(502, f"Download failed: {ex}")
+    return Response(content=content, media_type=a.get("content_type", ctype),
+                    headers={"Content-Disposition": f'inline; filename="{a["original_filename"]}"'})
+
+
+@api.delete("/attachments/{aid}")
+async def remove_attachment(aid: str, user: dict = Depends(get_current_user)):
+    a = clean(await db.attachments.find_one({"id": aid}))
+    if not a:
+        raise HTTPException(404, "Not found")
+    await require_write(user, a["organization_id"])
+    await db.attachments.update_one({"id": aid}, {"$set": {"is_deleted": True}})
+    await audit(user, a["organization_id"], "detach", "attachment", a["entity_id"], a["original_filename"])
+    return {"ok": True}
+
+
+# ---------------- Dashboards (adjustable, per user + company default) ----------------
+DEFAULT_WIDGETS = [
+    {"id": "w-roi", "type": "roi_rollup", "size": "md"},
+    {"id": "w-throughput", "type": "lifecycle_throughput", "size": "md"},
+    {"id": "w-timefreed", "type": "time_freed", "size": "sm"},
+    {"id": "w-cadence", "type": "measurement_cadence", "size": "md"},
+    {"id": "w-health", "type": "inventory_health", "size": "sm"},
+    {"id": "w-roitable", "type": "roi_by_initiative", "size": "lg"},
+]
+
+
+@api.get("/organizations/{org_id}/dashboard")
+async def get_dashboard(org_id: str, user: dict = Depends(get_current_user)):
+    await require_read(user, org_id)
+    personal = clean(await db.dashboards.find_one({"organization_id": org_id, "user_id": user["id"]}))
+    default = clean(await db.dashboards.find_one({"organization_id": org_id, "user_id": "__default__"}))
+    if personal:
+        widgets = personal["widgets"]
+    elif default:
+        widgets = default["widgets"]
+    else:
+        widgets = DEFAULT_WIDGETS
+    return {"widgets": widgets, "is_personal": bool(personal),
+            "has_default": bool(default), "can_publish_default":
+            (await org_role(user, org_id)) in ("company_admin", "workspace_admin", "platform_admin")}
+
+
+class DashboardIn(BaseModel):
+    widgets: List[dict]
+
+
+@api.put("/organizations/{org_id}/dashboard")
+async def save_dashboard(org_id: str, body: DashboardIn, user: dict = Depends(get_current_user)):
+    await require_read(user, org_id)
+    await db.dashboards.update_one(
+        {"organization_id": org_id, "user_id": user["id"]},
+        {"$set": {"organization_id": org_id, "user_id": user["id"],
+                  "widgets": body.widgets, "updated_at": now_iso()}}, upsert=True)
+    return {"ok": True}
+
+
+@api.post("/organizations/{org_id}/dashboard/reset")
+async def reset_dashboard(org_id: str, user: dict = Depends(get_current_user)):
+    await require_read(user, org_id)
+    await db.dashboards.delete_one({"organization_id": org_id, "user_id": user["id"]})
+    return {"ok": True}
+
+
+@api.put("/organizations/{org_id}/dashboard/default")
+async def publish_default_dashboard(org_id: str, body: DashboardIn, user: dict = Depends(get_current_user)):
+    role = await org_role(user, org_id)
+    if role not in ("company_admin", "workspace_admin", "platform_admin"):
+        raise HTTPException(403, "Only company admins may publish the default dashboard")
+    await db.dashboards.update_one(
+        {"organization_id": org_id, "user_id": "__default__"},
+        {"$set": {"organization_id": org_id, "user_id": "__default__",
+                  "widgets": body.widgets, "updated_at": now_iso()}}, upsert=True)
+    await audit(user, org_id, "dashboard_default", "dashboard", org_id, f"{len(body.widgets)} widgets")
+    return {"ok": True}
+
+
+# ---------------- Analytics (live, honest about missing data) ----------------
+ANALYTICS_ETYPES = ["initiative", "opportunity", "agent", "workflow"]
+
+
+def _num(v):
+    if v is None or v == "":
+        return None
+    try:
+        return float(v)
+    except (TypeError, ValueError):
+        return None
+
+
+@api.get("/organizations/{org_id}/analytics")
+async def analytics(org_id: str, user: dict = Depends(get_current_user)):
+    await require_read(user, org_id)
+    org = clean(await db.organizations.find_one({"id": org_id})) or {}
+    all_ents = [clean(e) for e in await db.entities.find(
+        {"organization_id": org_id, "archived": False}).to_list(10000)]
+    records = []
+    for e in all_ents:
+        if e["etype"] not in ANALYTICS_ETYPES:
+            continue
+        d = e["data"]
+        records.append({
+            "id": e["id"], "etype": e["etype"], "name": d.get("name", ""),
+            "area": d.get("area"), "stage": d.get("stage"), "phase": d.get("phase"),
+            "owner": _owner_of(d), "status": e["status"],
+            "cost": _num(d.get("cost_estimate")) if d.get("cost_estimate") not in (None, "") else _num(d.get("budget")),
+            "cost_period": d.get("cost_period") or ("one_off" if d.get("budget") else None),
+            "currency": d.get("currency") or org.get("currency", "USD"),
+            "expected_benefit": _num(d.get("expected_benefit")),
+            "realized_benefit": _num(d.get("realized_benefit")),
+            "time_freed_hours": _num(d.get("time_freed_hours")),
+            "hourly_rate": _num(d.get("hourly_rate")),
+            "cadence": d.get("cadence") or {},
+            "went_live_at": d.get("went_live_at"),
+        })
+    by_type, by_area = {}, {}
+    missing_owner = never_reviewed = 0
+    for e in all_ents:
+        by_type[e["etype"]] = by_type.get(e["etype"], 0) + 1
+        ar = e["data"].get("area")
+        if ar:
+            by_area[ar] = by_area.get(ar, 0) + 1
+        if not _owner_of(e["data"]) and e["etype"] in ("agent", "process", "opportunity", "initiative"):
+            missing_owner += 1
+        if not e.get("last_reviewed_at"):
+            never_reviewed += 1
+    stage_counts = {k: 0 for k in STAGE_KEYS}
+    for r in records:
+        if r["stage"] in stage_counts:
+            stage_counts[r["stage"]] += 1
+    return {
+        "currency": org.get("currency", "USD"),
+        "records": records,
+        "stage_counts": stage_counts,
+        "stages": STAGES,
+        "inventory": {"by_type": by_type, "by_area": by_area, "total": len(all_ents),
+                      "missing_owner": missing_owner, "never_reviewed": never_reviewed},
+    }
+
+
 @api.get("/meta/framework")
 async def framework_meta(user: dict = Depends(get_current_user)):
     return {
@@ -588,6 +891,7 @@ async def framework_meta(user: dict = Depends(get_current_user)):
         "relationship_types": ["reports_to", "coordinates", "supports", "shares_info",
                                "depends_on", "shared_service", "requires_approval", "hands_to"],
         "value_chain": seed_module.VALUE_CHAIN,
+        "stages": STAGES,
     }
 
 
@@ -610,6 +914,12 @@ async def startup():
     await db.users.create_index("id", unique=True)
     await db.entities.create_index("organization_id")
     await db.entities.create_index("etype")
+    await db.attachments.create_index("entity_id")
+    try:
+        storage.init_storage()
+        logger.info("Object storage initialized")
+    except Exception as e:
+        logger.error(f"Storage init failed: {e}")
     await seed_module.seed_demo()
 
 

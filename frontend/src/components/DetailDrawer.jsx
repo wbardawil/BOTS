@@ -1,8 +1,8 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { useScope } from "@/context/ScopeContext";
-import { api, apiErr } from "@/lib/api";
-import { ETYPE, SELECT_FIELDS, NUMERIC_FIELDS, SOURCING_RISK_KEYS, SOURCING, COST_PERIODS, RISK_LEVELS, DATA_SENSITIVITY } from "@/lib/constants";
-import { StatusBadge, PhasePill, DemoTag, AiTag, Field, SourcingBadge, RiskDot } from "@/components/shared";
+import client, { api, apiErr } from "@/lib/api";
+import { ETYPE, SELECT_FIELDS, NUMERIC_FIELDS, SOURCING_RISK_KEYS, SOURCING, COST_PERIODS, RISK_LEVELS, DATA_SENSITIVITY, STAGES, STAGE_LABEL, GATED_STAGES, BENEFIT_KEYS } from "@/lib/constants";
+import { StatusBadge, PhasePill, StagePill, DemoTag, AiTag, Field, SourcingBadge, RiskDot } from "@/components/shared";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,14 +12,15 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   Pencil, Save, X, ArrowUpRight, Sparkles, CheckCircle2, ArrowRight, ShieldAlert, Clock, Link2, Plus, Trash2,
+  Paperclip, Download, UploadCloud, Milestone,
 } from "lucide-react";
 import { toast } from "sonner";
 
 const BASE_TABS = ["Overview", "Responsibilities", "Workflow", "Dependencies", "Playbook",
-  "Implementation", "Adoption", "Metrics", "Decisions", "History"];
+  "Implementation", "Adoption", "Metrics", "Decisions", "Files", "History"];
 
 export default function DetailDrawer() {
-  const { selectedId, setSelectedId, currentOrg } = useScope();
+  const { selectedId, setSelectedId, currentOrg, bumpReload } = useScope();
   const [ent, setEnt] = useState(null);
   const [tab, setTab] = useState("Overview");
   const [edit, setEdit] = useState(false);
@@ -32,6 +33,7 @@ export default function DetailDrawer() {
     if (!ent) return BASE_TABS;
     const t = [...BASE_TABS];
     const after = (anchor, name) => t.splice(t.indexOf(anchor) + 1, 0, name);
+    if (["initiative", "opportunity"].includes(ent.etype)) after("Overview", "Lifecycle & Value");
     if (["agent", "workflow"].includes(ent.etype)) after("Implementation", "Sourcing & Risk");
     if (["initiative", "agent"].includes(ent.etype)) after(["agent", "workflow"].includes(ent.etype) ? "Sourcing & Risk" : "Implementation", "Roadmap");
     return t;
@@ -59,6 +61,7 @@ export default function DetailDrawer() {
       NUMERIC_FIELDS.forEach((k) => { if (data[k] === "" || data[k] == null) return; const n = Number(data[k]); if (!Number.isNaN(n)) data[k] = n; });
       const upd = await api.put(`/entities/${ent.id}`, { data, version: ent.version });
       setEnt({ ...upd, relationships: ent.relationships }); setEdit(false);
+      bumpReload();
       toast.success("Saved. Live views now reflect this change.");
     } catch (e) {
       toast.error(apiErr(e.response?.data?.detail));
@@ -98,6 +101,7 @@ export default function DetailDrawer() {
                     <div className="flex items-center gap-2 mt-2">
                       <StatusBadge status={ent.status} />
                       <PhasePill phase={ent.data.phase} />
+                      {["initiative", "opportunity"].includes(ent.etype) && <StagePill stage={ent.data.stage} />}
                       <SourcingBadge value={ent.data.sourcing} />
                       <RiskDot level={ent.data.risk_level} label />
                       <span className="text-[11px] text-muted-foreground mono">v{ent.version}</span>
@@ -297,6 +301,10 @@ function TabBody({ tab, ent, form, setForm, edit, audit, reload, canWrite }) {
       return <button key={r.id} onClick={() => setSelectedId(id)} className="card-surface rounded-lg p-3 w-full text-left hover:bg-accent mb-2">Open decision record →</button>;
     }) : <Muted>No decisions recorded for this record.</Muted>;
   }
+  if (tab === "Lifecycle & Value")
+    return <LifecycleTab ent={ent} form={form} setForm={setForm} edit={edit} reload={reload} canWrite={canWrite} EditableFields={EditableFields} />;
+  if (tab === "Files")
+    return <Attachments ent={ent} canWrite={canWrite} />;
   if (tab === "Roadmap")
     return <RoadmapTab ent={ent} reload={reload} canWrite={canWrite} setSel={setSelectedId} />;
   if (tab === "History")
@@ -555,6 +563,170 @@ function Checklist({ title, items, canWrite, text, setText, onAdd, renderItem, o
         <div className="flex gap-2 mt-2">
           <Input data-testid={`rm-${testid}-text`} value={text} onChange={(e) => setText(e.target.value)} placeholder={`Add ${title.toLowerCase()}`} />
           <Button size="sm" data-testid={`rm-${testid}-add`} onClick={onAdd}><Plus className="h-3.5 w-3.5" /></Button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function LifecycleTab({ ent, form, setForm, edit, reload, canWrite, EditableFields }) {
+  const { bumpReload } = useScope();
+  const d = ent.data;
+  const history = d.stage_history || [];
+  const curStage = d.stage || "discovery";
+
+  const moveStage = async (stage) => {
+    try {
+      await api.post(`/entities/${ent.id}/stage`, { stage, version: ent.version });
+      toast.success(`Moved to ${STAGE_LABEL[stage]}. Timeline updated.`);
+      bumpReload(); reload();
+    } catch (e) {
+      if (e.response?.status === 409) { toast.error("Record changed — reloading."); reload(); }
+      else toast.error(apiErr(e.response?.data?.detail));
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      <section data-testid="lifecycle-stage">
+        <div className="flex items-center justify-between mb-2">
+          <div className="text-xs uppercase tracking-wide text-muted-foreground">Lifecycle stage</div>
+          <StagePill stage={curStage} />
+        </div>
+        <div className="grid grid-cols-2 gap-1.5">
+          {STAGES.map((s) => {
+            const idx = STAGES.findIndex((x) => x.key === curStage);
+            const sIdx = STAGES.findIndex((x) => x.key === s.key);
+            const isCur = s.key === curStage;
+            return (
+              <button key={s.key} data-testid={`stage-btn-${s.key}`} disabled={!canWrite || isCur}
+                onClick={() => moveStage(s.key)}
+                className={`flex items-center justify-between rounded-md border px-2.5 py-1.5 text-xs transition-colors
+                  ${isCur ? "border-primary bg-primary text-primary-foreground" : "border-border bg-white hover:bg-accent"}
+                  ${!canWrite ? "opacity-70 cursor-not-allowed" : ""}`}>
+                <span>{s.label}</span>
+                {GATED_STAGES.has(s.key) && !isCur && <span title="Needs an owner" className="text-amber-500">⬥</span>}
+                {sIdx < idx && !isCur && <CheckCircle2 className="h-3 w-3 text-green-600" />}
+              </button>
+            );
+          })}
+        </div>
+        {!canWrite && <p className="text-[11px] text-muted-foreground mt-2">Read-only — you can view the lifecycle but not move stages.</p>}
+      </section>
+
+      <section>
+        <div className="text-xs uppercase tracking-wide text-muted-foreground mb-2 flex items-center gap-1.5"><Milestone className="h-3.5 w-3.5" /> Lifecycle timeline</div>
+        {history.length === 0 ? <Muted>No stage changes recorded yet.</Muted> : (
+          <ol className="relative border-l border-border ml-1.5 space-y-3">
+            {history.map((h, i) => (
+              <li key={i} className="ml-4" data-testid={`timeline-${i}`}>
+                <span className="absolute -left-[5px] h-2.5 w-2.5 rounded-full bg-primary" />
+                <div className="text-sm font-medium">{STAGE_LABEL[h.stage] || h.stage}</div>
+                <div className="text-[11px] text-muted-foreground">{new Date(h.at).toLocaleString()} · {h.by || "—"}{h.note && h.note !== "demo" ? ` · ${h.note}` : ""}</div>
+              </li>
+            ))}
+          </ol>
+        )}
+      </section>
+
+      <section>
+        <div className="text-xs uppercase tracking-wide text-muted-foreground mb-2">ROI & benefit inputs</div>
+        <p className="text-[11px] text-muted-foreground mb-3">Capture cost on the Implementation / Sourcing tabs. Benefit and time-freed feed the dashboards. Leave unknown values blank — they stay “not measured yet”, never zero. Record realized benefit at 3 / 6 / 12 months after Live.</p>
+        <EditableFields keys={BENEFIT_KEYS} />
+        <div className="mt-4">
+          <Label className="text-[11px] uppercase tracking-wide text-muted-foreground">Realized benefit cadence ({ent.data.currency || "USD"})</Label>
+          <div className="grid grid-cols-3 gap-2 mt-1.5">
+            {["m3", "m6", "m12"].map((m) => (
+              <div key={m} className="space-y-1">
+                <span className="text-[10px] text-muted-foreground">{m.slice(1)} months</span>
+                <Input data-testid={`cadence-${m}`} type="number" disabled={!edit}
+                  value={form.cadence?.[m] ?? ""} placeholder="—"
+                  onChange={(e) => setForm({ ...form, cadence: { ...(form.cadence || {}), [m]: e.target.value === "" ? null : Number(e.target.value) } })} />
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+    </div>
+  );
+}
+
+function Attachments({ ent, canWrite }) {
+  const { bumpReload } = useScope();
+  const [files, setFiles] = useState([]);
+  const [busy, setBusy] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const inputRef = useRef(null);
+
+  const load = useCallback(() => {
+    setLoading(true);
+    api.get(`/entities/${ent.id}/attachments`).then(setFiles).finally(() => setLoading(false));
+  }, [ent.id]);
+  useEffect(load, [load]);
+
+  const upload = async (file) => {
+    if (!file) return;
+    setBusy(true);
+    const fd = new FormData();
+    fd.append("file", file);
+    try {
+      await client.post(`/entities/${ent.id}/attachments`, fd, { headers: { "Content-Type": "multipart/form-data" } });
+      toast.success(`Attached ${file.name}`);
+      load(); bumpReload();
+    } catch (e) { toast.error(apiErr(e.response?.data?.detail)); }
+    finally { setBusy(false); if (inputRef.current) inputRef.current.value = ""; }
+  };
+
+  const download = async (a) => {
+    try {
+      const res = await client.get(`/attachments/${a.id}/download`, { responseType: "blob" });
+      const url = URL.createObjectURL(res.data);
+      const link = document.createElement("a");
+      link.href = url; link.download = a.original_filename; link.click();
+      setTimeout(() => URL.revokeObjectURL(url), 2000);
+    } catch (e) { toast.error("Download failed"); }
+  };
+
+  const remove = async (a) => {
+    await api.del(`/attachments/${a.id}`);
+    toast.success("Removed (hidden — history preserved)");
+    load(); bumpReload();
+  };
+
+  const fmtSize = (b) => b < 1024 ? `${b} B` : b < 1048576 ? `${(b / 1024).toFixed(0)} KB` : `${(b / 1048576).toFixed(1)} MB`;
+
+  return (
+    <div className="space-y-4" data-testid="files-tab">
+      <div className="flex items-center justify-between">
+        <p className="text-xs text-muted-foreground">Private to this company. PDF, Word, Excel, PowerPoint, images, CSV, TXT · max 15 MB.</p>
+        {canWrite && (
+          <>
+            <input ref={inputRef} type="file" className="hidden" data-testid="file-input"
+              onChange={(e) => upload(e.target.files?.[0])} />
+            <Button size="sm" variant="outline" data-testid="file-upload-btn" disabled={busy} onClick={() => inputRef.current?.click()}>
+              <UploadCloud className="h-3.5 w-3.5 mr-1.5" /> {busy ? "Uploading…" : "Upload"}
+            </Button>
+          </>
+        )}
+      </div>
+      {loading ? <Muted>Loading…</Muted> : files.length === 0 ? (
+        <div className="flex flex-col items-center justify-center text-center py-10 text-muted-foreground border border-dashed border-border rounded-lg">
+          <Paperclip className="h-7 w-7 mb-2 opacity-40" />
+          <p className="text-sm">No documentation attached.</p>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {files.map((a) => (
+            <div key={a.id} data-testid={`file-${a.id}`} className="flex items-center gap-2 card-surface rounded-lg px-3 py-2.5">
+              <Paperclip className="h-4 w-4 text-muted-foreground shrink-0" />
+              <div className="min-w-0 flex-1">
+                <div className="text-sm font-medium truncate">{a.original_filename}</div>
+                <div className="text-[11px] text-muted-foreground">{fmtSize(a.size)} · {a.uploaded_by || "—"} · {new Date(a.uploaded_at).toLocaleDateString()}</div>
+              </div>
+              <button data-testid={`file-download-${a.id}`} onClick={() => download(a)} className="text-muted-foreground hover:text-primary p-1"><Download className="h-4 w-4" /></button>
+              {canWrite && <button data-testid={`file-remove-${a.id}`} onClick={() => remove(a)} className="text-muted-foreground hover:text-destructive p-1"><Trash2 className="h-4 w-4" /></button>}
+            </div>
+          ))}
         </div>
       )}
     </div>

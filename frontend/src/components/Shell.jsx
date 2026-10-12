@@ -20,18 +20,23 @@ import ExecutiveOverview from "@/views/ExecutiveOverview";
 import Assessment from "@/pages/Assessment";
 import GroupOversight from "@/pages/GroupOversight";
 import SettingsPage from "@/pages/Settings";
+import Dashboard from "@/pages/Dashboard";
+import Inventory from "@/pages/Inventory";
+import Pipeline from "@/pages/Pipeline";
 
 export default function Shell() {
   const { user, logout } = useAuth();
   const scope = useScope();
   const { workspaces, orgs, currentOrg, currentWs, wsId, setWsId, orgId, setOrgId,
-    state, setState, version, setVersion, search, setSearch } = scope;
-  const [active, setActive] = useState("framework");
+    state, setState, version, setVersion, search, setSearch, active, setActive } = scope;
 
   const sec = SECONDARY_NAV.find((s) => s.id === active);
   const mainTab = MAIN_TABS.find((t) => t.id === active);
 
   const renderContent = () => {
+    if (active === "dashboard") return <Dashboard />;
+    if (active === "inventory") return <Inventory />;
+    if (active === "pipeline") return <Pipeline />;
     if (active === "framework") return <FrameworkCanvas />;
     if (active === "operating_map") return <OperatingMap />;
     if (active === "capability_model") return <CapabilityModel />;
