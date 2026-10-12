@@ -360,11 +360,13 @@ async def publish(org_id: str, body: PublishIn, user: dict = Depends(get_current
         {"organization_id": org_id, "archived": False}).to_list(10000)]
     rels = [clean(r) for r in await db.relationships.find({"organization_id": org_id}).to_list(10000)]
     views = [clean(v) for v in await db.views.find({"organization_id": org_id}).to_list(100)]
+    layout = clean(await db.layouts.find_one({"organization_id": org_id})) or {}
     snap = {
         "id": secrets.token_hex(12), "organization_id": org_id,
         "published_by": user["name"], "published_at": now_iso(),
         "change_summary": body.change_summary,
-        "payload": {"entities": entities, "relationships": rels, "views": views},
+        "payload": {"entities": entities, "relationships": rels, "views": views,
+                    "layout": layout.get("overrides", {})},
     }
     await db.snapshots.insert_one(snap)
     # mark draft entities as published state marker
@@ -412,6 +414,31 @@ async def diff(org_id: str, user: dict = Depends(get_current_user)):
             changed.append(live_map[i]["data"].get("name", i))
     return {"has_snapshot": True, "published_at": last["published_at"],
             "added": added, "changed": changed, "removed": removed}
+
+
+# ---------------- Framework canvas saved layout (shared per company) ----------------
+class LayoutIn(BaseModel):
+    overrides: dict = Field(default_factory=dict)
+
+
+@api.get("/organizations/{org_id}/framework-layout")
+async def get_layout(org_id: str, user: dict = Depends(get_current_user)):
+    await require_read(user, org_id)
+    l = clean(await db.layouts.find_one({"organization_id": org_id}))
+    return {"overrides": (l or {}).get("overrides", {}),
+            "updated_at": (l or {}).get("updated_at")}
+
+
+@api.put("/organizations/{org_id}/framework-layout")
+async def save_layout(org_id: str, body: LayoutIn, user: dict = Depends(get_current_user)):
+    await require_write(user, org_id)
+    await db.layouts.update_one(
+        {"organization_id": org_id},
+        {"$set": {"organization_id": org_id, "overrides": body.overrides, "updated_at": now_iso()}},
+        upsert=True)
+    await audit(user, org_id, "layout_save", "layout", org_id,
+                "reset to default" if not body.overrides else f"{len(body.overrides)} overrides")
+    return {"ok": True, "overrides": body.overrides}
 
 
 # ---------------- Assessment ----------------

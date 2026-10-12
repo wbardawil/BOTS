@@ -11,11 +11,11 @@ import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
-  Pencil, Save, X, ArrowUpRight, Sparkles, CheckCircle2, ArrowRight, ShieldAlert, Clock, Link2,
+  Pencil, Save, X, ArrowUpRight, Sparkles, CheckCircle2, ArrowRight, ShieldAlert, Clock, Link2, Plus, Trash2,
 } from "lucide-react";
 import { toast } from "sonner";
 
-const TABS = ["Overview", "Responsibilities", "Workflow", "Dependencies", "Playbook",
+const BASE_TABS = ["Overview", "Responsibilities", "Workflow", "Dependencies", "Playbook",
   "Implementation", "Adoption", "Metrics", "Decisions", "History"];
 
 export default function DetailDrawer() {
@@ -28,6 +28,8 @@ export default function DetailDrawer() {
   const [phaseOpen, setPhaseOpen] = useState(false);
 
   const canWrite = ["platform_admin", "workspace_admin", "company_admin", "company_editor"].includes(currentOrg?.role);
+  const tabs = ent && ["initiative", "agent"].includes(ent.etype)
+    ? [...BASE_TABS.slice(0, 6), "Roadmap", ...BASE_TABS.slice(6)] : BASE_TABS;
 
   const load = useCallback(() => {
     if (!selectedId) return;
@@ -120,7 +122,7 @@ export default function DetailDrawer() {
 
             {/* tab bar */}
             <div className="flex gap-1 px-3 py-2 border-b border-border overflow-x-auto">
-              {TABS.map((t) => (
+              {tabs.map((t) => (
                 <button key={t} data-testid={`dtab-${t}`} onClick={() => setTab(t)}
                   className={`px-2.5 py-1 rounded text-xs whitespace-nowrap ${tab === t ? "bg-primary/15 text-primary font-medium" : "text-muted-foreground hover:text-foreground"}`}>{t}</button>
               ))}
@@ -257,6 +259,8 @@ function TabBody({ tab, ent, form, setForm, edit, audit, reload, canWrite }) {
       return <button key={r.id} onClick={() => setSelectedId(id)} className="card-surface rounded-lg p-3 w-full text-left hover:bg-accent mb-2">Open decision record →</button>;
     }) : <Muted>No decisions recorded for this record.</Muted>;
   }
+  if (tab === "Roadmap")
+    return <RoadmapTab ent={ent} reload={reload} canWrite={canWrite} setSel={setSelectedId} />;
   if (tab === "History")
     return (
       <div className="space-y-3">
@@ -376,6 +380,141 @@ function PhaseDialog({ ent, open, setOpen, onDone }) {
 }
 
 const Muted = ({ children }) => <p className="text-sm text-muted-foreground">{children}</p>;
+
+const ADOPT_STATES = ["assigned", "in progress", "submitted", "reviewed", "accepted"];
+
+function RoadmapTab({ ent, reload, canWrite, setSel }) {
+  const d = ent.data;
+  const [cands, setCands] = useState([]);
+  const [names, setNames] = useState({});
+  const [accText, setAccText] = useState("");
+  const [adoptText, setAdoptText] = useState("");
+  const [fields, setFields] = useState({ owner: d.owner || "", status: d.status || "", deliverable: d.deliverable || d.deliverables || "", target_date: d.target_date || "" });
+
+  useEffect(() => {
+    api.get("/entities", { organization_id: ent.organization_id }).then((es) => {
+      setNames(Object.fromEntries(es.map((e) => [e.id, e.data.name])));
+      setCands(es.filter((e) => ["initiative", "agent"].includes(e.etype) && e.id !== ent.id));
+    });
+  }, [ent]);
+
+  const deps = (ent.relationships || []).filter((r) => r.rel_type === "depends_on" && r.from_id === ent.id);
+  const acc = d.acceptance_items || [];
+  const adopt = d.adoption_items || [];
+
+  const saveData = async (partial) => {
+    try { await api.put(`/entities/${ent.id}`, { data: partial, version: ent.version }); reload(); }
+    catch (e) { toast.error(apiErr(e.response?.data?.detail)); reload(); }
+  };
+  const addDep = async (toId) => {
+    if (!toId) return;
+    try { await api.post("/relationships", { from_id: ent.id, to_id: toId, rel_type: "depends_on" }); toast.success("Dependency linked"); reload(); }
+    catch (e) { toast.error(apiErr(e.response?.data?.detail)); }
+  };
+  const removeDep = async (rid) => { await api.del(`/relationships/${rid}`); reload(); };
+
+  const uid = () => (crypto.randomUUID ? crypto.randomUUID() : String(Math.random()).slice(2));
+  const addAcc = () => { if (!accText.trim()) return; saveData({ acceptance_items: [...acc, { id: uid(), text: accText.trim(), done: false }] }); setAccText(""); };
+  const toggleAcc = (id) => saveData({ acceptance_items: acc.map((x) => x.id === id ? { ...x, done: !x.done } : x) });
+  const rmAcc = (id) => saveData({ acceptance_items: acc.filter((x) => x.id !== id) });
+  const addAdopt = () => { if (!adoptText.trim()) return; saveData({ adoption_items: [...adopt, { id: uid(), text: adoptText.trim(), state: "assigned" }] }); setAdoptText(""); };
+  const cycleAdopt = (id) => saveData({ adoption_items: adopt.map((x) => x.id === id ? { ...x, state: ADOPT_STATES[(ADOPT_STATES.indexOf(x.state) + 1) % ADOPT_STATES.length] } : x) });
+  const rmAdopt = (id) => saveData({ adoption_items: adopt.filter((x) => x.id !== id) });
+
+  const linkedIds = new Set(deps.map((r) => r.to_id));
+
+  return (
+    <div className="space-y-5">
+      {/* quick fields */}
+      <div className="grid grid-cols-2 gap-2">
+        {[["owner", "Owner"], ["status", "Status"], ["deliverable", "Deliverable"], ["target_date", "Target date"]].map(([k, l]) => (
+          <div key={k} className="space-y-1">
+            <Label className="text-[11px] uppercase tracking-wide text-muted-foreground">{l}</Label>
+            <Input data-testid={`rm-${k}`} disabled={!canWrite} value={fields[k]} onChange={(e) => setFields({ ...fields, [k]: e.target.value })} />
+          </div>
+        ))}
+      </div>
+      {canWrite && <Button size="sm" data-testid="rm-save-fields" onClick={() => saveData(fields)}>Save fields</Button>}
+
+      {/* Dependencies */}
+      <div>
+        <div className="text-xs uppercase tracking-wide text-muted-foreground mb-1.5">Dependencies</div>
+        <div className="space-y-1.5">
+          {deps.length === 0 && <Muted>No dependency links.</Muted>}
+          {deps.map((r) => (
+            <div key={r.id} className="flex items-center justify-between card-surface rounded-md px-2.5 py-1.5 text-sm">
+              <button data-testid={`rm-dep-${r.to_id}`} onClick={() => setSel(r.to_id)} className="flex items-center gap-1.5 hover:text-primary"><Link2 className="h-3.5 w-3.5 text-primary" /> {names[r.to_id] || r.to_id}</button>
+              {canWrite && <button data-testid={`rm-dep-rm-${r.id}`} onClick={() => removeDep(r.id)} className="text-muted-foreground hover:text-destructive"><Trash2 className="h-3.5 w-3.5" /></button>}
+            </div>
+          ))}
+        </div>
+        {canWrite && (
+          <select data-testid="rm-dep-add" onChange={(e) => { addDep(e.target.value); e.target.value = ""; }}
+            className="mt-2 w-full rounded-md border border-border bg-background px-2 py-1.5 text-sm">
+            <option value="">+ Add dependency…</option>
+            {cands.filter((c) => !linkedIds.has(c.id)).map((c) => <option key={c.id} value={c.id}>{c.data.name} ({c.etype})</option>)}
+          </select>
+        )}
+      </div>
+
+      {/* Acceptance criteria checklist */}
+      <Checklist title="Acceptance criteria" items={acc} canWrite={canWrite} testid="acc"
+        text={accText} setText={setAccText} onAdd={addAcc}
+        renderItem={(x) => (
+          <label className="flex items-center gap-2 text-sm flex-1">
+            <Checkbox checked={x.done} data-testid={`rm-acc-${x.id}`} disabled={!canWrite} onCheckedChange={() => toggleAcc(x.id)} />
+            <span className={x.done ? "line-through text-muted-foreground" : ""}>{x.text}</span>
+          </label>
+        )} onRemove={rmAcc} />
+
+      {/* Adoption checklist */}
+      <div>
+        <div className="text-xs uppercase tracking-wide text-muted-foreground mb-1.5">Adoption checklist <span className="text-[10px] normal-case italic">— completion ≠ operational readiness</span></div>
+        <div className="space-y-1.5">
+          {adopt.length === 0 && <Muted>No adoption tasks.</Muted>}
+          {adopt.map((x) => (
+            <div key={x.id} className="flex items-center gap-2 card-surface rounded-md px-2.5 py-1.5 text-sm">
+              <span className="flex-1">{x.text}</span>
+              <button data-testid={`rm-adopt-${x.id}`} disabled={!canWrite} onClick={() => cycleAdopt(x.id)}
+                className={`rounded-full px-2 py-0.5 text-[11px] border capitalize ${x.state === "accepted" ? "border-emerald-500/40 text-emerald-300 bg-emerald-500/10" : "border-sky-500/40 text-sky-300 bg-sky-500/10"}`}>{x.state}</button>
+              {canWrite && <button data-testid={`rm-adopt-rm-${x.id}`} onClick={() => rmAdopt(x.id)} className="text-muted-foreground hover:text-destructive"><Trash2 className="h-3.5 w-3.5" /></button>}
+            </div>
+          ))}
+        </div>
+        {canWrite && (
+          <div className="flex gap-2 mt-2">
+            <Input data-testid="rm-adopt-text" value={adoptText} onChange={(e) => setAdoptText(e.target.value)} placeholder="Add adoption task" />
+            <Button size="sm" data-testid="rm-adopt-add" onClick={addAdopt}><Plus className="h-3.5 w-3.5" /></Button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function Checklist({ title, items, canWrite, text, setText, onAdd, renderItem, onRemove, testid }) {
+  return (
+    <div>
+      <div className="text-xs uppercase tracking-wide text-muted-foreground mb-1.5">{title}</div>
+      <div className="space-y-1.5">
+        {items.length === 0 && <Muted>None yet.</Muted>}
+        {items.map((x) => (
+          <div key={x.id} className="flex items-center gap-2 card-surface rounded-md px-2.5 py-1.5">
+            {renderItem(x)}
+            {canWrite && <button data-testid={`rm-${testid}-rm-${x.id}`} onClick={() => onRemove(x.id)} className="text-muted-foreground hover:text-destructive"><Trash2 className="h-3.5 w-3.5" /></button>}
+          </div>
+        ))}
+      </div>
+      {canWrite && (
+        <div className="flex gap-2 mt-2">
+          <Input data-testid={`rm-${testid}-text`} value={text} onChange={(e) => setText(e.target.value)} placeholder={`Add ${title.toLowerCase()}`} />
+          <Button size="sm" data-testid={`rm-${testid}-add`} onClick={onAdd}><Plus className="h-3.5 w-3.5" /></Button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function fmt(v) {
   if (v === null || v === undefined || v === "") return <span className="text-muted-foreground italic">unknown</span>;
   if (typeof v === "boolean") return v ? "Yes" : "No";

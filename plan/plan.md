@@ -1,131 +1,113 @@
-# BOTS — Living Enterprise Framework (Update Plan)
+# BOTS — Framework Canvas: Saved Layouts, Inline Roadmap Authoring, and Beyond
 
-Turn the enterprise framework in the reference image into one living, editable canvas that is the
-primary way a company is viewed and managed — all four sections visible together, every record
-connected to the data already in the app.
+A set of upgrades that make the Living Framework canvas arrangeable, editable in place, and
+shareable — so a company's whole business board can be shaped, published, printed, and compared.
 
 ## Who it's for
-- Operators and transformation leads who want to see their whole business on one page and manage AI change from it.
-- Executives and company admins reviewing current vs target state, phases, ownership, and evidence.
-- Holding-group and portfolio overseers who switch between companies, each with its own framework.
-
-## The current mismatch (why this update exists)
-Today BOTS presents the framework as separate dark dashboard views (Operating Map, Capability Model,
-Value Chain, Roadmap) reached through tabs. The reference image is instead a single dense composition
-with four sections laid out together on a white canvas: a full-width operating/agent org chart on top,
-an eleven-panel business reference model lower-left, a three-phase roadmap matrix upper-right, and a
-value chain lower-right. This update rebuilds that integrated composition and makes it the default
-company page, while keeping the existing focused views as readable close-ups.
+- Operators and transformation leads who arrange and maintain their company's framework board.
+- Company admins and editors who author roadmap detail directly on the board.
+- Executives who want a clean one-page poster of the framework to share or present.
+- Holding-group and portfolio overseers comparing the same areas across authorized companies.
 
 ## Core features and experience
-1. **One integrated framework canvas** (the new default company page) showing all four sections at once:
-   - **A — Operating / Agent Organization (full-width top band):** phase summaries (AI Co-Pilots / AI
-     Brains / Autonomous) on the left; company identity, human executive accountability, and a central
-     coordination role in the center; legend, systems/integration categories, and compact navigation on
-     the right. Below, aligned functional branches for Sales, Customer & Admin, Marketing & Growth,
-     Product / Service Management, Operations & Supply Chain, Data & Analytics, Tech/AI & Automations,
-     Finance, and Human Resources — each branch repeating the same layers (functional heading, lead/
-     coordinator, knowledge/context resource, three phase branches, specialized workflows/agents,
-     systems/tools, human roles & accountable owner) with left-side row labels. Strategy & Leadership is
-     represented through the executive/strategic layer; Legal, Risk & Compliance through a clearly
-     labeled cross-cutting governance lane.
-   - **B — Business Reference Model (large lower-left):** the eleven canonical areas in the exact 4 / 4 / 3
-     arrangement with compact numbered ribbon/chevron headings; inside each panel, grouped content
-     (capabilities & human responsibilities, AI-supported workflows, knowledge/context & agent
-     opportunities).
-   - **C — Three-Phase Roadmap (upper lower-right):** a matrix (not a Kanban) with Phase 1 / 2 / 3 columns
-     and business-area rows (filterable, all eleven supported); each cell item references an initiative
-     with owner, status, deliverables, dependencies, dates, acceptance criteria, adoption requirements,
-     evidence, and approval decision.
-   - **D — Business Value Chain (lower lower-right):** primary stages (Strategic Planning & Leadership →
-     Product & Operations → Marketing & Sales → Delivery & Customer Support) with process cards and
-     directional handoffs, plus supporting functions (Tech/AI, Data & Analytics, Finance, HR) and Legal,
-     Risk & Compliance shown as a cross-cutting governance relationship.
-2. **Canvas navigation:** pan and zoom, "Fit entire framework" (overall composition resembles the
-   reference), and "Fit selected section" (that section's text and records become readable). Explicit
-   default layout coordinates so the composition matches the image rather than relying on auto-layout.
-3. **Eleven canonical business areas** with fixed IDs, numbering, and order (Strategy & Leadership;
-   Product / Service Management; Operations & Supply Chain; Marketing & Growth; Sales; Customer & Admin;
-   Data & Analytics; Tech, AI & Automations; Finance; Human Resources; Legal, Risk & Compliance). All
-   eleven are first-class and support capabilities, ownership, assessments, current/target state,
-   opportunities, agents/workflows, systems/knowledge, playbooks, initiatives, phases, adoption, metrics/
-   evidence, risks/decisions, and history. An area can be marked "not applicable" with rationale but never
-   silently disappears.
-4. **Connected records, not a picture:** one agent or process can appear in several sections; editing its
-   underlying record updates every live representation. Selecting any record opens a right-side detail
-   drawer (Overview, Ownership, Workflow, Playbook, Initiative, Evidence, History) without navigating away
-   or losing canvas position.
-5. **State and mode controls:** current/target selector, draft/published selector, read-only vs edit mode,
-   search, filters, highlight-related-records, and save indicators — carried over and wired into the canvas.
-6. **Living-model signals on the canvas:** unassigned owners, missing prerequisites, and last-reviewed
-   dates are visible in place.
-7. **Per-company frameworks:** switching companies loads that company's own areas, records, saved layout,
-   and progress — never one hard-coded framework for everyone. Holding/group and portfolio behavior
-   (shared services, cross-company initiatives, deduplicated portfolio membership, authorized summaries)
-   is preserved.
-8. **Focused secondary views retained:** the existing Operating Map, Capability Model, Value Chain, and
-   Roadmap remain available as close-ups of the same records.
+
+### Phase 1 (built now)
+
+**1. Saved Layouts — drag-to-arrange, shared per company**
+- The framework canvas keeps its current reference composition as the default. Users can drag the
+  movable pieces into a custom arrangement; anything not moved stays exactly where it is today
+  ("keep as much as possible the original layout").
+- What can be moved: the four sections (A Operating/Agent Organization, B Business Reference Model,
+  C Roadmap, D Value Chain) as whole blocks, and the repositionable cards inside them (functional
+  branches in A, the 11 area panels in B, value-chain stage cards in D). Fixed structural scaffolding
+  (row labels, section frames, the phase columns of the roadmap matrix) stays put so the board never
+  collapses into chaos.
+- A visible "layout changed — Save / Reset to default" control appears once anything is moved.
+  Saving stores the arrangement for the company; everyone who can edit that company sees the same
+  saved board. "Reset to default" restores the reference composition.
+- Edit vs read-only is respected: viewers can pan/zoom and open records but cannot move or save;
+  only editors/admins can rearrange and save.
+- Switching companies loads that company's own saved arrangement (or the default if none saved).
+- Snapshots: when a version is published, the layout in effect at that moment is captured with it,
+  so a published version keeps its arrangement even if the draft board is later rearranged. The live
+  draft layout remains independently editable.
+
+**2. Inline Roadmap Authoring — edit a roadmap cell on the board**
+- Clicking a roadmap item (an initiative or agent in a Phase 1/2/3 cell of section C) still opens the
+  detail drawer, but the drawer gains a focused "Roadmap" editing area for that item covering:
+  - Dependencies: links to other records (initiatives or agents) chosen from a searchable picker, shown
+    as removable chips; each links through to that record. No free-text dependencies.
+  - Acceptance criteria: an editable checklist (add / edit / check / remove items).
+  - Adoption checklist: an editable checklist of adoption tasks tied to the item, each with a state
+    (e.g. assigned → in progress → submitted → reviewed → accepted). The board marks items whose
+    adoption is incomplete, and keeps "adoption done" visibly separate from "operationally ready".
+  - Owner, status, deliverable, and dates remain editable alongside these.
+- Edits persist and reflect anywhere that item appears (roadmap cell, org chart, value chain).
+- A lightweight "add roadmap item to this area + phase" action lets an editor create a new initiative
+  directly into a specific cell without leaving the board.
+
+### Phase 2 (planned, not built now)
+
+**3. Poster Export — one-page printable PDF of the full framework**
+- Export the entire board (all four sections, current arrangement) to a single-page, fit-to-page PDF
+  suitable for printing or sharing, with the company name, the current/target and draft/published
+  context, an "exported on" date, and clear DEMO labeling when demo data is present.
+- Honors the same authorization as the existing export (admin-level), and reflects the saved layout
+  so the poster matches what people see on screen.
+
+### Phase 3 (planned, not built now)
+
+**4. Group Roll-up — compare the 11 canonical areas across a portfolio**
+- A new dedicated comparison view, reached from Group Oversight, that places authorized companies in a
+  portfolio side by side against the same 11 canonical areas, showing per-area signals (e.g. agent
+  count, phase spread, ownership gaps, assessment coverage).
+- Respects existing rules: overlapping portfolio membership is deduplicated, restricted companies are
+  withheld (names and counts not leaked), currencies and incompatible metric definitions are kept
+  separate, and reporting periods / missing data are shown rather than invented.
 
 ## User flow
-1. Sign in and pick a workspace and company (unchanged).
-2. The company opens on the integrated framework canvas, fit to show the whole composition.
-3. Zoom or use "Fit selected section" to read a section; search/filter/highlight to find related records.
-4. Click any node, panel, or roadmap item to open the right-side drawer; review or edit in place.
-5. Toggle current/target and draft/published; edits persist and reflect across every section they appear in.
-6. Publish a snapshot to freeze a version; switch companies to see distinct frameworks.
+1. Open a company — it lands on the framework canvas with its saved arrangement (or the default).
+2. Drag sections and cards to taste; a "Save / Reset to default" control appears; save to share the
+   arrangement with everyone editing that company.
+3. Click a roadmap item to open its drawer; add dependency links from a picker, edit acceptance and
+   adoption checklists, set owner/status/dates; changes persist and show across the board.
+4. Toggle current/target and draft/published as today; publishing freezes the current layout with the
+   snapshot while the draft stays editable.
+5. (Phase 2) Export the board as a one-page PDF poster.
+6. (Phase 3) From Group Oversight, open the roll-up to compare the 11 areas across the portfolio.
 
 ## UI/UX feel
-- The framework canvas uses the reference's restrained style: white canvas, thin neutral borders, compact
-  cards, dark text, consistent per-function colors, orthogonal connectors, minimal shadows, minimal
-  gradients, readable text when zoomed into a section.
-- The surrounding app shell (header, workspace/scope switchers, left navigation) stays in the current dark
-  BOTS theme, so the white framework reads as the focal "board" inside the product.
-- Original BOTS branding throughout; no vendor logo, proprietary text, or invented unreadable screenshot
-  content. Demo content is clearly labeled.
+- The board keeps the reference's restrained style — white canvas, thin neutral borders, compact cards,
+  consistent per-function colors, minimal shadows — with the surrounding BOTS shell staying dark.
+- Dragging feels deliberate: pieces snap to a light grid, the rest of the composition holds its place,
+  and unsaved changes are obvious with an always-visible Save / Reset control.
+- Checklists and dependency chips are compact and in-place; nothing forces a full-screen modal.
+- Original BOTS branding throughout; no vendor logo or proprietary text reproduced; demo content stays
+  clearly labeled.
 
 ## Implementation phases
-
-### Phase 1 — MVP (built now): visual reconstruction + live wiring
-- The full four-section integrated canvas on white, matching the reference composition, as the default
-  company page, with "Fit entire framework" and "Fit selected section".
-- The eleven canonical areas migrated from existing records (content, owners, relationships, initiatives,
-  and history preserved; ambiguous mappings flagged; customer department names not renamed).
-- Northwind fully populated to resemble the reference density; other companies show the same structure
-  with lighter demo content.
-- Record selection → right-side drawer (Overview, Ownership, Workflow, Playbook, Initiative, Evidence,
-  History); in-place editing that persists after reload and updates shared records across live views.
-- Current/target, draft/published, read-only/edit, search, filters, highlight-related, and save
-  indicators wired to the canvas; published snapshots remain unchanged; existing permissions and
-  customer isolation preserved; company switching loads distinct data.
-- Existing focused views kept as secondary close-ups.
-
-### Phase 2 — richer authoring and fidelity
-- Editable default layout templates per company size (compact / enterprise / group) and drag-to-arrange
-  with saved coordinates per section.
-- Deeper roadmap cell authoring (dependencies graph, acceptance criteria and adoption checklists inline),
-  and governance-lane editing for Legal/Risk across functions.
-- Printable / exportable "poster" of the full framework.
-
-### Phase 3 — oversight and scale
-- Group/portfolio framework roll-ups that compare the same canonical areas across authorized companies.
-- Cross-company shared-service initiatives surfaced on each company's canvas.
-- Optional full light-theme shell to match the reference everywhere (if desired after review).
+- **Phase 1 (build now):** Saved Layouts (shared per company, default-preserving, snapshot-aware,
+  read-only respected) and Inline Roadmap Authoring (dependency links via picker, acceptance checklist,
+  adoption checklist with states, add-item-to-cell).
+- **Phase 2 (later):** Poster Export — one-page fit-to-page PDF of the full board.
+- **Phase 3 (later):** Group Roll-up — dedicated portfolio comparison of the 11 canonical areas.
 
 ## Assumptions
-- Theme: the framework canvas renders light/white while the app shell stays dark (the recommended option);
-  a full light-theme app is deferred to Phase 3 and can be pulled forward on request.
-- The integrated canvas becomes the default company landing; the four existing views remain as secondary
-  close-ups rather than being removed.
-- Northwind is populated to reference-like density; all other companies get the same eleven-area structure
-  with lighter, clearly-labeled demo content.
-- Area migration maps existing records to the eleven canonical IDs and display names, preserving all
-  content/owners/relationships/initiatives/history, flagging ambiguous cases rather than guessing, and not
-  renaming any customer's own department names.
-- Branding stays "BOTS"; the "Conducting AI" logo and any proprietary/unreadable text from the image are
-  not reproduced — original starter content is used instead.
-- No live agent execution is introduced in this update; agents/workflows are represented and managed only.
-- Default layout uses explicit coordinates for the reference composition; auto-layout is not relied on to
-  achieve the match.
-- The nine functional branches in the top band follow the reference (Strategy via the executive layer,
-  Legal/Risk via a governance lane); eleven equal department columns are intentionally not forced into the
-  upper chart.
+- Saved layouts are shared per company (not per user) and are also captured into published snapshots;
+  the live draft layout stays independently editable after a publish.
+- The default reference composition is never overwritten — "Reset to default" always returns to it, and
+  only pieces a user actually moves are stored as overrides.
+- Movable pieces are the four sections and their repositionable cards; structural scaffolding (row
+  labels, frames, roadmap phase columns) is intentionally not draggable to protect readability.
+- Roadmap dependencies are links to existing initiatives/agents chosen from a picker; free-text
+  dependencies are not offered.
+- Acceptance criteria and adoption tasks are editable checklists; adoption completion is shown as
+  distinct from operational readiness.
+- Inline authoring and layout saving require editor/admin access; viewers get pan/zoom and read-only
+  record access only.
+- Poster Export produces a single-page, fit-to-page PDF (not PNG) and uses the same admin-level
+  authorization as the existing export.
+- Group Roll-up is a new comparison view entered from Group Oversight, not merged into it and not placed
+  inside the Framework Canvas.
+- No live agent execution is introduced; agents and workflows continue to be represented and managed only.
+- Branding stays "BOTS"; the reference image is used as structural inspiration only.
