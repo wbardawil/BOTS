@@ -77,7 +77,7 @@ DEMO_PASSWORD = os.environ.get("DEMO_USERS_PASSWORD") or ""
 
 async def seed_demo(force=False):
     await seed_admin()
-    marker = await db.meta.find_one({"id": "demo_seed_v2"})
+    marker = await db.meta.find_one({"id": "demo_seed_v3"})
     if marker and not force:
         return
     # Only demo rows are ever wiped. Client data (is_demo absent or False) must survive a reseed.
@@ -173,9 +173,71 @@ async def seed_demo(force=False):
                         {"name": "Order Processing", "owner": None,  # unassigned owner flag
                          "current_state": "Manual entry"}, status="published", reviewed=False))
     # systems & knowledge
+    # Technology inventory: one system per kind so the Tech Inventory view and the classifier have real shapes
     entities.append(ent("sys-nw-crm", "system", o, w,
-                        {"name": "CRM System", "type": "system", "verified_integration": False},
-                        status="published"))
+                        {"name": "HubSpot CRM", "kind": "saas", "vendor": "HubSpot", "area": "sales", "owner": "Avery Stone",
+                         "tech_owner": "Dana Editor", "users_count": 18, "seats": 20, "cost_estimate": 900, "cost_period": "monthly",
+                         "currency": "USD", "criticality": "high", "hosting": "cloud", "system_status": "active",
+                         "data_sensitivity": "personal_data", "api_available": "yes", "api_type": "rest",
+                         "api_docs_url": "https://developers.hubspot.com/docs/api/overview", "auth_method": "oauth2",
+                         "mcp_available": "unknown", "integration_notes": "Contacts, deals and tickets reachable via REST; webhooks on deal stage changes.",
+                         "verified_integration": False, "source": "manual"}, status="published"))
+    entities.append(ent("sys-nw-orders", "system", o, w,
+                        {"name": "Order Desk (in-house)", "kind": "custom", "vendor": "Internal", "area": "operations", "owner": "Jordan Blake",
+                         "tech_owner": "IT", "users_count": 9, "criticality": "high", "hosting": "on_prem", "system_status": "active",
+                         "data_sensitivity": "confidential", "api_available": "no", "api_type": "none", "auth_method": "basic",
+                         "mcp_available": "no", "integration_notes": "PHP app on a local server; data lives in MySQL; nightly CSV export to finance.",
+                         "verified_integration": False, "source": "manual"}, status="published"))
+    entities.append(ent("sys-nw-db", "system", o, w,
+                        {"name": "Orders database (MySQL)", "kind": "database", "vendor": "MySQL", "area": "operations", "owner": "IT",
+                         "criticality": "high", "hosting": "on_prem", "system_status": "active", "data_sensitivity": "confidential",
+                         "api_available": "unknown", "auth_method": "basic", "mcp_available": "unknown", "source": "manual"}, status="published"))
+    entities.append(ent("sys-nw-commissions", "system", o, w,
+                        {"name": "Commissions workbook (Excel)", "kind": "spreadsheet", "vendor": "Microsoft Excel", "area": "finance", "owner": "Finance lead",
+                         "users_count": 3, "criticality": "medium", "hosting": "desktop", "system_status": "active", "data_sensitivity": "confidential",
+                         "api_available": "no", "api_type": "file_export", "mcp_available": "no",
+                         "integration_notes": "Monthly manual consolidation of CRM exports; single owner; no version control.", "source": "manual"}, status="published"))
+    entities.append(ent("sys-nw-zapier", "system", o, w,
+                        {"name": "Zapier automations", "kind": "integration", "vendor": "Zapier", "area": "marketing", "owner": "Marketing lead",
+                         "cost_estimate": 49, "cost_period": "monthly", "currency": "USD", "criticality": "low", "hosting": "cloud",
+                         "system_status": "active", "api_available": "yes", "api_type": "webhook", "auth_method": "api_key", "mcp_available": "no",
+                         "integration_notes": "Six zaps: form to CRM, CRM to Slack, invoice to sheet.", "source": "manual"}, status="published"))
+    entities.append(ent("sys-nw-fileserver", "system", o, w,
+                        {"name": "Office file server", "kind": "infrastructure", "vendor": "Windows Server", "area": "tech", "owner": "IT",
+                         "criticality": "medium", "hosting": "on_prem", "system_status": "retiring", "data_sensitivity": "internal",
+                         "api_available": "no", "mcp_available": "no", "source": "manual"}, status="published"))
+    entities.append(ent("sys-nw-pos", "system", o, w,
+                        {"name": "POS terminals (12)", "kind": "device", "vendor": "Clip", "area": "sales", "owner": "Store manager",
+                         "users_count": 12, "criticality": "high", "hosting": "cloud", "system_status": "active", "data_sensitivity": "personal_data",
+                         "api_available": "yes", "api_type": "rest", "auth_method": "api_key", "mcp_available": "unknown", "source": "manual"}, status="published"))
+    # Leadership intake example (pain point captured in an interview, classified and reviewed)
+    entities.append(ent("init-nw-intake-1", "initiative", o, w,
+                        {"name": "Monthly commissions take four days", "intake_kind": "pain_point", "area": "finance",
+                         "raised_by": "Avery Stone", "raised_by_role": "Head of Sales", "owner": "Finance lead",
+                         "business_problem": "Commissions are consolidated by hand from CRM exports into one workbook every month; errors surface after payment.",
+                         "intended_outcome": "Commissions computed from CRM deal data with a review step, in one day.",
+                         "current_process": "Export deals from HubSpot, paste into Excel, apply rules per rep, email for approval.",
+                         "frequency": "monthly", "time_per_occurrence_hours": 32, "people_involved": 3, "urgency": "high", "impact": "medium",
+                         "systems_involved": ["sys-nw-crm", "sys-nw-commissions"],
+                         "evidence_quote": "Every month we lose a week to the commissions file and someone still finds an error.",
+                         "source": "form", "phase": 1,
+                         "feasibility_draft_class": "configure", "feasibility_class": "configure",
+                         "feasibility": {
+                             "draft": {"label": "AI_DRAFT", "kind": "feasibility", "accepted": True, "model": "demo", "prompt_version": "feas-v1",
+                                       "generated_at": now(), "assumptions": "Generated from the demo inventory only. Requires human acceptance.",
+                                       "content": {"classification": "configure", "confidence": "medium",
+                                                   "rationale": "HubSpot exposes deals via REST and its reporting can compute per-rep totals; the workbook only adds commission rules, which fit a HubSpot workflow or a scheduled export plus a reviewed sheet.",
+                                                   "systems_used": ["sys-nw-crm"], "what_to_do": "Model commission rules as HubSpot calculated properties or a scheduled report; keep a one-page review before payout.",
+                                                   "prerequisites": ["Commission rules written down per rep", "Deal close dates reliable in CRM"],
+                                                   "risks": ["Rules with exceptions may not fit calculated properties"], "estimated_effort": "S",
+                                                   "quick_win": True, "suggested_phase": 1, "open_questions": ["Are splits between reps common?"]}},
+                             "final": {"classification": "configure", "confidence": "medium",
+                                       "rationale": "Accepted as drafted; confirmed rules are simple percentages per rep.",
+                                       "systems_used": ["sys-nw-crm"], "what_to_do": "Configure HubSpot calculated properties and a monthly report; review before payout.",
+                                       "prerequisites": ["Commission rules written down per rep"], "risks": [], "estimated_effort": "S",
+                                       "quick_win": True, "suggested_phase": 1, "open_questions": []},
+                             "review_action": "accepted", "reviewed_by": "Wadi Bardawil", "reviewed_at": now(), "review_note": "Validated in the readout."}},
+                        status="published", phase=1))
     entities.append(ent("know-nw-playbook", "knowledge_source", o, w,
                         {"name": "Sales Qualification Guide", "owner": "Avery Stone",
                          "freshness_rule": "Review quarterly", "access": "Sales team"},
@@ -487,5 +549,5 @@ async def seed_demo(force=False):
         "payload": {"entities": nw_entities, "relationships": nw_rels, "views": nw_views},
         "is_demo": True})
 
-    await db.meta.update_one({"id": "demo_seed_v2"}, {"$set": {"id": "demo_seed_v2", "at": now()}},
+    await db.meta.update_one({"id": "demo_seed_v3"}, {"$set": {"id": "demo_seed_v3", "at": now()}},
                              upsert=True)

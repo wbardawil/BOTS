@@ -130,6 +130,20 @@ operational readiness; labeled AI + demo data; persistence; optimistic concurren
   New). Adoption-assignment data is kept but no longer surfaced.
 - `memory/SERVICE-flagship.md` holds the challenged engagement blueprint (day plan, deliverables, pricing).
 
+## Implemented (2026-10-12) — engagement engine M1: field manifest, drawer, validation, seed
+- `frontend/src/lib/fields.js`: ONE field manifest per record type with `{es, en}` labels, types and
+  vocabularies (system kind, API/MCP facts, intake fields, feasibility classes). It drives the drawer
+  (`components/FieldGrid.jsx`, hoisted so inputs keep focus), the create dialog and, next, CSV import/export.
+- Drawer tabs from the manifest: Integration (systems), Intake and Feasibility (initiatives; read-only
+  draft/final view until the review endpoint lands). Overview shows manifest fields first and legacy keys
+  under "Other fields". Lifecycle tab uses the company's custom stages.
+- Backend `fields.py` validates the new enumerated and numeric fields on create/update (legacy keys
+  untouched; server-only keys such as `feasibility` are rejected on plain writes). Initiatives and
+  opportunities get their first lifecycle stage on creation. `entities_util.py` holds `new_entity_doc`
+  and the compare-and-set `cas_update` for background writers.
+- Seed v3: seven Northwind systems (one per kind, with API/MCP facts) and one classified pain point
+  (`init-nw-intake-1`) so the Tech Inventory, Intake and Feasibility screens have real content.
+
 ## Backlog / Next Stage (deferred per MVP scope)
 - P1: richer playbook editor; initiative workstreams per company; invitations/revocation UI;
   per-request membership caching (N+1); split server.py into routers.

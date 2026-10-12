@@ -6,7 +6,7 @@ import { StatusBadge, PhasePill, StagePill, DemoTag, Empty } from "@/components/
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
-import { CreateDialog, CREATE_FIELDS } from "@/components/CreateDialog";
+import { CreateDialog, creatableTypes } from "@/components/CreateDialog";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuLabel,
 } from "@/components/ui/dropdown-menu";
@@ -94,7 +94,7 @@ export default function Inventory() {
           <div className="flex items-center gap-2">
             <select data-testid="inv-create-type" value={createType} onChange={(e) => setCreateType(e.target.value)}
               className="h-9 rounded-md border border-input bg-white px-2 text-sm">
-              {INVENTORY_ETYPES.filter((t) => CREATE_FIELDS[t]).map((t) => <option key={t} value={t}>{ETYPE[t]?.label || t}</option>)}
+              {creatableTypes(INVENTORY_ETYPES).map((t) => <option key={t} value={t}>{ETYPE[t]?.label || t}</option>)}
             </select>
             <Button data-testid="entity-create-btn" onClick={() => setCreateOpen(true)}><Plus className="h-4 w-4 mr-1.5" /> New</Button>
           </div>

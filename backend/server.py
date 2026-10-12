@@ -21,6 +21,7 @@ from ai import ai_router
 import access
 from access import require_read, require_write, accessible_org_ids, accessible_workspace_ids, org_role
 import seed as seed_module
+import fields as field_rules
 import storage
 from email_util import send_email
 
@@ -121,6 +122,13 @@ async def create_entity(body: EntityIn, user: dict = Depends(get_current_user)):
     org = await db.organizations.find_one({"id": body.organization_id})
     if not org:
         raise HTTPException(404, "Organization not found")
+    problems = field_rules.validate_data(body.etype, body.data)
+    if problems:
+        raise HTTPException(400, "; ".join(problems))
+    if body.etype in PIPELINE_ETYPES and not body.data.get("stage"):
+        first = (await get_org_stages(body.organization_id))[0]["key"]
+        body.data["stage"] = first
+        body.data.setdefault("stage_history", [{"stage": first, "at": now_iso(), "by": user.get("name"), "note": "created"}])
     doc = {
         "id": secrets.token_hex(12), "etype": body.etype,
         "organization_id": body.organization_id, "workspace_id": clean(org)["workspace_id"],
@@ -172,6 +180,10 @@ async def update_entity(eid: str, body: EntityUpdate, user: dict = Depends(get_c
     await require_write(user, e["organization_id"])
     if body.version != e["version"]:
         raise HTTPException(409, "Record changed since you loaded it. Reload and retry.")
+    if body.data is not None:
+        problems = field_rules.validate_data(e["etype"], body.data)
+        if problems:
+            raise HTTPException(400, "; ".join(problems))
     upd = {"updated_at": now_iso(), "version": e["version"] + 1}
     if body.data is not None:
         upd["data"] = {**e["data"], **body.data}

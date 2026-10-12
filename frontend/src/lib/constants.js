@@ -142,7 +142,8 @@ export const SELECT_FIELDS = {
   data_sensitivity: Object.keys(DATA_SENSITIVITY),
 };
 export const NUMERIC_FIELDS = ["cost_estimate", "budget", "baseline", "target", "candidate_phase",
-  "expected_benefit", "realized_benefit", "time_freed_hours", "hourly_rate"];
+  "expected_benefit", "realized_benefit", "time_freed_hours", "hourly_rate",
+  "users_count", "seats", "time_per_occurrence_hours", "people_involved"];
 export const SOURCING_RISK_KEYS = ["sourcing", "vendor", "cost_estimate", "cost_period", "currency", "cost_notes",
   "risk_level", "risk_category", "data_sensitivity", "regulatory_flags", "required_controls", "risk_notes"];
 

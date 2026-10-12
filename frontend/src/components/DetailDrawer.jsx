@@ -1,7 +1,9 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import { useScope } from "@/context/ScopeContext";
 import client, { api, apiErr } from "@/lib/api";
-import { ETYPE, SELECT_FIELDS, NUMERIC_FIELDS, SOURCING_RISK_KEYS, SOURCING, COST_PERIODS, RISK_LEVELS, DATA_SENSITIVITY, STAGES, STAGE_LABEL, GATED_STAGES, BENEFIT_KEYS } from "@/lib/constants";
+import { ETYPE, NUMERIC_FIELDS, COST_PERIODS, STAGES, BENEFIT_KEYS } from "@/lib/constants";
+import { fieldsFor, sectionKeys, hasSection, labelFor } from "@/lib/fields";
+import FieldGrid from "@/components/FieldGrid";
 import { StatusBadge, PhasePill, StagePill, DemoTag, AiTag, Field, SourcingBadge, RiskDot } from "@/components/shared";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
@@ -33,7 +35,10 @@ export default function DetailDrawer() {
     if (!ent) return BASE_TABS;
     const t = [...BASE_TABS];
     const after = (anchor, name) => t.splice(t.indexOf(anchor) + 1, 0, name);
-    if (["initiative", "opportunity"].includes(ent.etype)) after("Overview", "Lifecycle & Value");
+    if (hasSection(ent.etype, "integration")) after("Overview", "Integration");
+    if (hasSection(ent.etype, "intake")) after("Overview", "Intake");
+    if (hasSection(ent.etype, "feasibility")) after("Intake", "Feasibility");
+    if (["initiative", "opportunity"].includes(ent.etype)) after(ent.etype === "initiative" ? "Feasibility" : "Overview", "Lifecycle & Value");
     if (["agent", "workflow"].includes(ent.etype)) after("Implementation", "Sourcing & Risk");
     if (["initiative", "agent"].includes(ent.etype)) after(["agent", "workflow"].includes(ent.etype) ? "Sourcing & Risk" : "Implementation", "Roadmap");
     return t;
@@ -100,7 +105,7 @@ export default function DetailDrawer() {
                     )}
                     <div className="flex items-center gap-2 mt-2">
                       <StatusBadge status={ent.status} />
-                      <PhasePill phase={ent.data.phase} />
+                      {ent.data.phase ? <PhasePill phase={ent.data.phase} /> : null}
                       {["initiative", "opportunity"].includes(ent.etype) && <StagePill stage={ent.data.stage} />}
                       <SourcingBadge value={ent.data.sourcing} />
                       <RiskDot level={ent.data.risk_level} label />
@@ -162,44 +167,67 @@ function TabBody({ tab, ent, form, setForm, edit, audit, reload, canWrite }) {
   const d = ent.data;
   const rels = ent.relationships || [];
 
-  const EditableFields = ({ keys }) => (
-    <div className="grid gap-3">
-      {keys.filter((k) => k in d || edit).map((k) => (
-        <div key={k} className="space-y-1">
-          <Label className="text-[11px] uppercase tracking-wide text-muted-foreground">{k.replace(/_/g, " ")}</Label>
-          {edit ? (
-            SELECT_FIELDS[k] ? (
-              <select data-testid={`edit-${k}`} value={form[k] ?? ""} onChange={(e) => setForm({ ...form, [k]: e.target.value })}
-                className="h-9 w-full rounded-md border border-input bg-white px-3 text-sm">
-                <option value="">—</option>
-                {SELECT_FIELDS[k].map((o) => <option key={o} value={o}>{optionLabel(k, o)}</option>)}
-              </select>
-            ) : (typeof d[k] === "string" && d[k]?.length > 40) || ["purpose", "rationale", "content", "business_problem", "proposed_workflow", "cost_notes", "risk_notes", "required_controls"].includes(k) ? (
-              <Textarea data-testid={`edit-${k}`} value={form[k] ?? ""} onChange={(e) => setForm({ ...form, [k]: e.target.value })} />
-            ) : (
-              <Input data-testid={`edit-${k}`} type={NUMERIC_FIELDS.includes(k) ? "number" : "text"} value={form[k] ?? ""} onChange={(e) => setForm({ ...form, [k]: e.target.value })} />
-            )
-          ) : (
-            <div className="text-sm text-foreground/90">{SELECT_FIELDS[k] && d[k] ? optionLabel(k, d[k]) : fmt(d[k])}</div>
-          )}
-        </div>
-      ))}
-    </div>
-  );
+  // Plain function (not a component) so FieldGrid stays mounted and inputs keep focus while typing.
+  const FG = (keys, extra = {}) => <FieldGrid etype={ent.etype} keys={keys} data={d} form={form} setForm={setForm} edit={edit} {...extra} />;
+  const sectioned = new Set(fieldsFor(ent.etype, (r) => r.section !== "overview").map((r) => r.key));
 
   if (tab === "Overview") {
-    const keys = Object.keys(d).filter((k) => !HIDE_KEYS.includes(k) &&
-      !["allowed_actions", "prohibited_actions", "human_owner", "operational_owner", "owner_email", "approval_requirements", "escalation"].includes(k) &&
-      !SOURCING_RISK_KEYS.includes(k));
+    const manifestKeys = sectionKeys(ent.etype, "overview").filter((k) => k !== "name");
+    const legacy = Object.keys(d).filter((k) => !HIDE_KEYS.includes(k) && !manifestKeys.includes(k) && !sectioned.has(k) &&
+      !["allowed_actions", "prohibited_actions", "human_owner", "operational_owner", "owner_email", "approval_requirements", "escalation", "stage", "stage_history", "went_live_at", "cadence", "acceptance_items", "adoption_items", "template"].includes(k) &&
+      !BENEFIT_KEYS.includes(k));
     return (
       <div className="space-y-5">
-        <EditableFields keys={keys.length ? keys : ["description"]} />
+        {FG(manifestKeys.length ? manifestKeys : ["description"], { showEmpty: edit })}
+        {legacy.length > 0 && (
+          <details className="rounded-md border border-gray-200 p-2" open={edit}>
+            <summary className="text-[11px] uppercase tracking-wide text-muted-foreground cursor-pointer">Other fields</summary>
+            <div className="mt-2">{FG(legacy)}</div>
+          </details>
+        )}
         <AiAssist ent={ent} />
       </div>
     );
   }
+  if (tab === "Integration")
+    return (
+      <div className="space-y-3" data-testid="integration-tab">
+        <p className="text-[11px] text-muted-foreground">API and MCP facts feed the feasibility classification. Record what exists, not what you wish existed; "unknown" is an honest answer. Never paste a credential here.</p>
+        {FG(sectionKeys(ent.etype, "integration"), { showEmpty: true })}
+      </div>
+    );
+  if (tab === "Intake")
+    return (
+      <div className="space-y-3" data-testid="intake-tab">
+        <p className="text-[11px] text-muted-foreground">What leadership raised, in their words: the problem, how it is done today, how often, and who said it.</p>
+        {FG(sectionKeys(ent.etype, "intake"), { showEmpty: true })}
+      </div>
+    );
+  if (tab === "Feasibility") {
+    const fz = d.feasibility || {}; const draft = fz.draft; const fin = fz.final;
+    const Block = ({ title, c, tag }) => c ? (
+      <section className="rounded-md border border-gray-200 p-3 space-y-2">
+        <div className="flex items-center gap-2"><span className="text-[11px] uppercase tracking-wide text-muted-foreground">{title}</span>{tag}</div>
+        <div className="flex items-center gap-2 text-sm"><span className="rounded border border-gray-300 bg-white px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide mono">{labelFor("initiative", "feasibility_class", c.classification)}</span>
+          <span className="text-xs text-muted-foreground">confidence {c.confidence} · effort {c.estimated_effort}{c.quick_win ? " · quick win" : ""}{c.suggested_phase ? ` · phase ${c.suggested_phase}` : ""}</span></div>
+        <p className="text-sm text-foreground/85 whitespace-pre-wrap">{c.rationale}</p>
+        {c.what_to_do && <p className="text-sm"><b>What to do:</b> {c.what_to_do}</p>}
+        {c.systems_used?.length > 0 && <p className="text-xs text-muted-foreground">Systems: {c.systems_used.join(", ")}</p>}
+        {c.prerequisites?.length > 0 && <p className="text-xs text-muted-foreground">Prerequisites: {c.prerequisites.join("; ")}</p>}
+        {c.risks?.length > 0 && <p className="text-xs text-muted-foreground">Risks: {c.risks.join("; ")}</p>}
+        {c.open_questions?.length > 0 && <p className="text-xs text-muted-foreground">Open questions: {c.open_questions.join("; ")}</p>}
+      </section>
+    ) : null;
+    return (
+      <div className="space-y-4" data-testid="feasibility-tab">
+        {!draft && !fin && <Muted>Not classified yet. Run the feasibility pass from the Feasibility map.</Muted>}
+        <Block title="Final verdict" c={fin} tag={fz.reviewed_by ? <span className="text-[11px] text-muted-foreground">{fz.review_action} by {fz.reviewed_by} · {fz.reviewed_at ? new Date(fz.reviewed_at).toLocaleDateString() : ""}</span> : null} />
+        <Block title="AI draft" c={draft?.content} tag={<AiTag />} />
+      </div>
+    );
+  }
   if (tab === "Responsibilities")
-    return <EditableFields keys={["human_owner", "operational_owner", "owner", "owner_email", "assignee", "approver", "allowed_actions", "prohibited_actions", "approval_requirements", "escalation", "exceptions"]} />;
+    return FG(["human_owner", "operational_owner", "owner", "owner_email", "assignee", "approver", "allowed_actions", "prohibited_actions", "approval_requirements", "escalation", "exceptions"]);
   if (tab === "Workflow") {
     const steps = d.steps;
     if (!steps) return <Muted>No workflow steps on this record. Open a Workflow record to see ordered steps.</Muted>;
@@ -243,7 +271,7 @@ function TabBody({ tab, ent, form, setForm, edit, audit, reload, canWrite }) {
     );
   }
   if (tab === "Playbook") {
-    if (ent.etype === "playbook") return <EditableFields keys={["source_type", "intended_outcome", "prerequisites", "proposed_workflow", "implementation_steps", "acceptance_criteria", "measurement", "fallback", "version"]} />;
+    if (ent.etype === "playbook") return FG(["source_type", "intended_outcome", "prerequisites", "proposed_workflow", "implementation_steps", "acceptance_criteria", "measurement", "fallback", "version"]);
     const pb = rels.find((r) => r.to_type === "playbook" || r.from_type === "playbook");
     return pb ? (
       <button data-testid="goto-playbook" onClick={() => setSelectedId(pb.from_type === "playbook" ? pb.from_id : pb.to_id)}
@@ -251,7 +279,7 @@ function TabBody({ tab, ent, form, setForm, edit, audit, reload, canWrite }) {
     ) : <Muted>No playbook linked to this record.</Muted>;
   }
   if (tab === "Implementation")
-    return <EditableFields keys={["status", "trigger", "inputs", "outputs", "deliverables", "start_date", "target_date", "budget", "currency"]} />;
+    return FG(["status", "trigger", "inputs", "outputs", "deliverables", "start_date", "target_date", "budget", "currency"]);
   if (tab === "Sourcing & Risk")
     return (
       <div className="space-y-6" data-testid="sourcing-risk-tab">
@@ -261,7 +289,7 @@ function TabBody({ tab, ent, form, setForm, edit, audit, reload, canWrite }) {
             <div className="flex items-center gap-2"><SourcingBadge value={d.sourcing} />{d.cost_estimate != null && d.cost_estimate !== "" && <span className="text-xs text-gray-600 mono">{d.currency || "USD"} {Number(d.cost_estimate).toLocaleString()} {COST_PERIODS[d.cost_period] || ""}</span>}</div>
           </div>
           <p className="text-[11px] text-muted-foreground mb-3">Buy a vendor product, build it in-house, or run a hybrid. Record the vendor or platform and what it costs so the roadmap carries real numbers.</p>
-          <EditableFields keys={["sourcing", "vendor", "cost_estimate", "cost_period", "currency", "cost_notes"]} />
+          {FG(sectionKeys(ent.etype, "sourcing"), { showEmpty: true })}
         </section>
         <section>
           <div className="flex items-center justify-between mb-2">
@@ -269,7 +297,7 @@ function TabBody({ tab, ent, form, setForm, edit, audit, reload, canWrite }) {
             <RiskDot level={d.risk_level} label />
           </div>
           <p className="text-[11px] text-muted-foreground mb-3">Risk, compliance and control notes live on the workflow, not in a separate exercise. Flags are illustrative, not legal advice.</p>
-          <EditableFields keys={["risk_level", "risk_category", "data_sensitivity", "regulatory_flags", "required_controls", "risk_notes"]} />
+          {FG(sectionKeys(ent.etype, "risk"), { showEmpty: true })}
         </section>
       </div>
     );
@@ -295,7 +323,7 @@ function TabBody({ tab, ent, form, setForm, edit, audit, reload, canWrite }) {
     }) : <Muted>No decisions recorded for this record.</Muted>;
   }
   if (tab === "Lifecycle & Value")
-    return <LifecycleTab ent={ent} form={form} setForm={setForm} edit={edit} reload={reload} canWrite={canWrite} EditableFields={EditableFields} />;
+    return <LifecycleTab ent={ent} form={form} setForm={setForm} edit={edit} reload={reload} canWrite={canWrite} />;
   if (tab === "Files")
     return <Attachments ent={ent} canWrite={canWrite} />;
   if (tab === "Roadmap")
@@ -321,14 +349,6 @@ function TabBody({ tab, ent, form, setForm, edit, audit, reload, canWrite }) {
       </div>
     );
   return null;
-}
-
-function optionLabel(k, o) {
-  if (k === "sourcing") return SOURCING[o]?.label || o;
-  if (k === "cost_period") return COST_PERIODS[o] || o;
-  if (k === "risk_level") return RISK_LEVELS[o]?.label || o;
-  if (k === "data_sensitivity") return DATA_SENSITIVITY[o] || o;
-  return String(o).replace(/_/g, " ");
 }
 
 function AiAssist({ ent }) {
@@ -562,8 +582,10 @@ function Checklist({ title, items, canWrite, text, setText, onAdd, renderItem, o
   );
 }
 
-function LifecycleTab({ ent, form, setForm, edit, reload, canWrite, EditableFields }) {
-  const { bumpReload } = useScope();
+function LifecycleTab({ ent, form, setForm, edit, reload, canWrite }) {
+  const { bumpReload, stages: orgStages } = useScope();
+  const stageList = orgStages && orgStages.length ? orgStages : STAGES.map((x) => ({ ...x, gated: ["approved", "in_progress", "live", "realized"].includes(x.key) }));
+  const stageLabelOf = (k) => (stageList.find((x) => x.key === k) || {}).label || k;
   const d = ent.data;
   const history = d.stage_history || [];
   const curStage = d.stage || "discovery";
@@ -571,7 +593,7 @@ function LifecycleTab({ ent, form, setForm, edit, reload, canWrite, EditableFiel
   const moveStage = async (stage) => {
     try {
       await api.post(`/entities/${ent.id}/stage`, { stage, version: ent.version });
-      toast.success(`Moved to ${STAGE_LABEL[stage]}. Timeline updated.`);
+      toast.success(`Moved to ${stageLabelOf(stage)}. Timeline updated.`);
       bumpReload(); reload();
     } catch (e) {
       if (e.response?.status === 409) { toast.error("Record changed — reloading."); reload(); }
@@ -587,9 +609,9 @@ function LifecycleTab({ ent, form, setForm, edit, reload, canWrite, EditableFiel
           <StagePill stage={curStage} />
         </div>
         <div className="grid grid-cols-2 gap-1.5">
-          {STAGES.map((s) => {
-            const idx = STAGES.findIndex((x) => x.key === curStage);
-            const sIdx = STAGES.findIndex((x) => x.key === s.key);
+          {stageList.map((s) => {
+            const idx = stageList.findIndex((x) => x.key === curStage);
+            const sIdx = stageList.findIndex((x) => x.key === s.key);
             const isCur = s.key === curStage;
             return (
               <button key={s.key} data-testid={`stage-btn-${s.key}`} disabled={!canWrite || isCur}
@@ -598,7 +620,7 @@ function LifecycleTab({ ent, form, setForm, edit, reload, canWrite, EditableFiel
                   ${isCur ? "border-primary bg-primary text-primary-foreground" : "border-border bg-white hover:bg-accent"}
                   ${!canWrite ? "opacity-70 cursor-not-allowed" : ""}`}>
                 <span>{s.label}</span>
-                {GATED_STAGES.has(s.key) && !isCur && <span title="Needs an owner" className="text-amber-500">⬥</span>}
+                {s.gated && !isCur && <span title="Needs an owner" className="text-amber-500">⬥</span>}
                 {sIdx < idx && !isCur && <CheckCircle2 className="h-3 w-3 text-green-600" />}
               </button>
             );
@@ -614,7 +636,7 @@ function LifecycleTab({ ent, form, setForm, edit, reload, canWrite, EditableFiel
             {history.map((h, i) => (
               <li key={i} className="ml-4" data-testid={`timeline-${i}`}>
                 <span className="absolute -left-[5px] h-2.5 w-2.5 rounded-full bg-primary" />
-                <div className="text-sm font-medium">{STAGE_LABEL[h.stage] || h.stage}</div>
+                <div className="text-sm font-medium">{stageLabelOf(h.stage)}</div>
                 <div className="text-[11px] text-muted-foreground">{new Date(h.at).toLocaleString()} · {h.by || "—"}{h.note && h.note !== "demo" ? ` · ${h.note}` : ""}</div>
               </li>
             ))}
@@ -625,7 +647,7 @@ function LifecycleTab({ ent, form, setForm, edit, reload, canWrite, EditableFiel
       <section>
         <div className="text-xs uppercase tracking-wide text-muted-foreground mb-2">ROI & benefit inputs</div>
         <p className="text-[11px] text-muted-foreground mb-3">Capture cost on the Implementation / Sourcing tabs. Benefit and time-freed feed the dashboards. Leave unknown values blank — they stay “not measured yet”, never zero. Record realized benefit at 3 / 6 / 12 months after Live.</p>
-        <EditableFields keys={BENEFIT_KEYS} />
+        <FieldGrid etype={ent.etype} keys={BENEFIT_KEYS} data={ent.data} form={form} setForm={setForm} edit={edit} showEmpty />
         <div className="mt-4">
           <Label className="text-[11px] uppercase tracking-wide text-muted-foreground">Realized benefit cadence ({ent.data.currency || "USD"})</Label>
           <div className="grid grid-cols-3 gap-2 mt-1.5">
