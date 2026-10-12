@@ -46,16 +46,16 @@ export const SECONDARY_NAV = [
 ];
 
 export const STATUS_COLORS = {
-  draft: "bg-amber-500/15 text-amber-300 border-amber-500/30",
-  in_review: "bg-sky-500/15 text-sky-300 border-sky-500/30",
-  published: "bg-emerald-500/15 text-emerald-300 border-emerald-500/30",
-  archived: "bg-zinc-500/15 text-zinc-400 border-zinc-500/30",
+  draft: "bg-gray-100 text-gray-600 border-gray-300",
+  in_review: "bg-gray-100 text-gray-700 border-gray-300",
+  published: "bg-gray-900 text-white border-gray-900",
+  archived: "bg-white text-gray-400 border-gray-200",
 };
 
 export const PHASE_META = {
-  1: { label: "Phase 1 · AI Co-Pilots", color: "168 82% 45%" },
-  2: { label: "Phase 2 · AI Brains", color: "199 89% 55%" },
-  3: { label: "Phase 3 · Autonomous", color: "262 72% 66%" },
+  1: { label: "Phase 1 · AI Co-Pilots", color: "#111827" },
+  2: { label: "Phase 2 · AI Brains", color: "#6b7280" },
+  3: { label: "Phase 3 · Autonomous", color: "#9ca3af", dashed: true },
 };
 
 // 11 canonical business areas (fixed id, number and order) for the living framework canvas

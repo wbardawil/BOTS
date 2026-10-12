@@ -189,7 +189,7 @@ function TabBody({ tab, ent, form, setForm, edit, audit, reload, canWrite }) {
             <div className="flex items-center gap-2 text-xs">
               <span className="h-5 w-5 rounded-full bg-primary/20 text-primary flex items-center justify-center font-semibold">{i + 1}</span>
               <span className="uppercase tracking-wide text-muted-foreground">{s.actor}</span>
-              {s.approval && <span className="text-amber-400 flex items-center gap-1"><ShieldAlert className="h-3 w-3" /> approval</span>}
+              {s.approval && <span className="text-gray-600 flex items-center gap-1"><ShieldAlert className="h-3 w-3" /> approval</span>}
             </div>
             <div className="mt-2 text-sm"><b>{s.action}</b></div>
             <div className="text-xs text-muted-foreground mt-1">in: {s.input} · out: {s.output} {s.handoff && `· → ${s.handoff}`}</div>
@@ -476,7 +476,7 @@ function RoadmapTab({ ent, reload, canWrite, setSel }) {
             <div key={x.id} className="flex items-center gap-2 card-surface rounded-md px-2.5 py-1.5 text-sm">
               <span className="flex-1">{x.text}</span>
               <button data-testid={`rm-adopt-${x.id}`} disabled={!canWrite} onClick={() => cycleAdopt(x.id)}
-                className={`rounded-full px-2 py-0.5 text-[11px] border capitalize ${x.state === "accepted" ? "border-emerald-500/40 text-emerald-300 bg-emerald-500/10" : "border-sky-500/40 text-sky-300 bg-sky-500/10"}`}>{x.state}</button>
+                className={`rounded-full px-2 py-0.5 text-[11px] border capitalize ${x.state === "accepted" ? "border-gray-900 text-white bg-gray-900" : "border-gray-300 text-gray-600 bg-gray-50"}`}>{x.state}</button>
               {canWrite && <button data-testid={`rm-adopt-rm-${x.id}`} onClick={() => rmAdopt(x.id)} className="text-muted-foreground hover:text-destructive"><Trash2 className="h-3.5 w-3.5" /></button>}
             </div>
           ))}

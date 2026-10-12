@@ -7,9 +7,9 @@ import { Empty } from "@/components/shared";
 import { GitBranch } from "lucide-react";
 
 const REL_COLOR = {
-  reports_to: "#9aa7bd", coordinates: "#38bdf8", supports: "#2dd4bf",
-  depends_on: "#a78bfa", shares_info: "#60a5fa", requires_approval: "#f59e0b",
-  hands_to: "#f472b6", shared_service: "#34d399", approves: "#f59e0b",
+  reports_to: "#9ca3af", coordinates: "#9ca3af", supports: "#9ca3af",
+  depends_on: "#9ca3af", shares_info: "#9ca3af", requires_approval: "#9ca3af",
+  hands_to: "#9ca3af", shared_service: "#9ca3af", approves: "#9ca3af",
 };
 
 function NodeCard({ data }) {
@@ -17,18 +17,19 @@ function NodeCard({ data }) {
   const Icon = meta.icon;
   const unassigned = data.unassigned;
   return (
-    <div data-testid={`map-node-${data.id}`} className="rf-node rounded-lg px-3 py-2 shadow-lg min-w-[150px]"
-      style={{ background: "hsl(222 40% 11%)", border: `1.5px solid hsl(${meta.color} / 0.55)` }}>
-      <Handle type="target" position={Position.Top} style={{ background: `hsl(${meta.color})`, width: 6, height: 6 }} />
-      <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wide" style={{ color: `hsl(${meta.color})` }}>
+    <div data-testid={`map-node-${data.id}`} className="rf-node rounded-lg px-3 py-2 min-w-[150px]"
+      style={{ background: "#ffffff", border: "1px solid #e5e7eb" }}>
+      <Handle type="target" position={Position.Top} style={{ background: "#9ca3af", width: 6, height: 6 }} />
+      <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wide text-gray-500">
         {Icon && <Icon className="h-3 w-3" />} {meta.label}
       </div>
-      <div className="text-sm font-medium text-foreground mt-0.5 leading-tight">{data.label}</div>
+      <div className="text-sm font-medium mt-0.5 leading-tight" style={{ color: "#111827" }}>{data.label}</div>
       <div className="flex items-center gap-1.5 mt-1">
-        {data.phase && <span className="text-[9px] px-1 rounded" style={{ background: `hsl(${meta.color} / 0.2)`, color: `hsl(${meta.color})` }}>P{data.phase}</span>}
-        {unassigned && <span className="text-[9px] text-amber-400">⚠ no owner</span>}
+        {data.phase && <span className="text-[9px] px-1 rounded border bg-white"
+          style={{ color: { 1: "#111827", 2: "#6b7280", 3: "#9ca3af" }[data.phase] || "#6b7280", borderColor: "#d1d5db", borderStyle: data.phase === 3 ? "dashed" : "solid" }}>P{data.phase}</span>}
+        {unassigned && <span className="text-[9px] text-gray-500">⚠ no owner</span>}
       </div>
-      <Handle type="source" position={Position.Bottom} style={{ background: `hsl(${meta.color})`, width: 6, height: 6 }} />
+      <Handle type="source" position={Position.Bottom} style={{ background: "#9ca3af", width: 6, height: 6 }} />
     </div>
   );
 }
@@ -75,8 +76,8 @@ export default function OperatingMap() {
     const es = rels.filter((r) => ids.has(r.from_id) && ids.has(r.to_id)).map((r) => ({
       id: r.id, source: r.from_id, target: r.to_id, label: r.rel_type.replace(/_/g, " "),
       animated: ["hands_to", "requires_approval"].includes(r.rel_type),
-      style: { stroke: REL_COLOR[r.rel_type] || "#64748b", strokeWidth: 1.5 },
-      labelStyle: { fill: "#9aa7bd", fontSize: 9 }, labelBgStyle: { fill: "#0b1220" },
+      style: { stroke: REL_COLOR[r.rel_type] || "#9ca3af", strokeWidth: 1.5 },
+      labelStyle: { fill: "#6b7280", fontSize: 9 }, labelBgStyle: { fill: "#ffffff" },
     }));
     setNodes(ns); setEdges(es);
   }, [view, entities, rels, search, setNodes, setEdges]);
@@ -100,7 +101,7 @@ export default function OperatingMap() {
         <div className="flex flex-wrap gap-2">
           {legend.map((l) => (
             <span key={l} className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
-              <span className="h-2 w-5 rounded-full" style={{ background: REL_COLOR[l] || "#64748b" }} /> {l.replace(/_/g, " ")}
+              <span className="h-2 w-5 rounded-full" style={{ background: "#9ca3af" }} /> {l.replace(/_/g, " ")}
             </span>
           ))}
         </div>
@@ -110,10 +111,10 @@ export default function OperatingMap() {
           onNodesChange={onNodesChange} onEdgesChange={onEdgesChange}
           onNodeClick={onNodeClick} onNodeDragStop={onNodeDragStop}
           fitView proOptions={{ hideAttribution: true }} minZoom={0.2}>
-          <Background color="#1e293b" gap={22} />
+          <Background color="#e5e7eb" gap={22} />
           <Controls className="!bg-card !border-border" />
-          <MiniMap pannable zoomable maskColor="rgba(2,6,23,0.7)" style={{ background: "#0b1220" }}
-            nodeColor={(n) => `hsl(${ETYPE[n.data.etype]?.color || "210 20% 50%"})`} />
+          <MiniMap pannable zoomable maskColor="rgba(0,0,0,0.05)" style={{ background: "#ffffff" }}
+            nodeColor={() => "#9ca3af"} />
         </ReactFlow>
       </div>
     </div>

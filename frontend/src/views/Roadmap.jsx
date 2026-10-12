@@ -43,8 +43,8 @@ export default function Roadmap() {
       {mode === "matrix" ? (
         <div className="grid md:grid-cols-3 gap-4">
           {PHASES.map((p) => (
-            <div key={p} className="card-surface rounded-xl p-4">
-              <h3 className="font-display font-semibold text-sm mb-3" style={{ color: `hsl(${{1:"168 82% 45%",2:"199 89% 55%",3:"262 72% 66%"}[p]})` }}>{PHASE_LABEL[p]}</h3>
+            <div key={p} className="card-surface rounded-xl p-4" style={p === 3 ? { borderStyle: "dashed" } : undefined}>
+              <h3 className="font-display font-semibold text-sm mb-3" style={{ color: { 1: "#111827", 2: "#6b7280", 3: "#9ca3af" }[p] }}>{PHASE_LABEL[p]}</h3>
               <div className="space-y-2">
                 {items.filter((i) => (i.data.phase || 1) === p).map((i) => (
                   <button key={i.id} data-testid={`road-item-${i.id}`} onClick={() => setSelectedId(i.id)}
@@ -75,7 +75,7 @@ export default function Roadmap() {
                   <td className="px-4 py-3 font-medium">{i.data.name}</td>
                   <td className="px-4 py-3 text-muted-foreground">{i.kind}</td>
                   <td className="px-4 py-3">Phase {i.data.phase || 1}</td>
-                  <td className="px-4 py-3">{i.data.owner || i.data.human_owner || <span className="text-amber-400">⚠</span>}</td>
+                  <td className="px-4 py-3">{i.data.owner || i.data.human_owner || <span className="text-gray-400">⚠</span>}</td>
                   <td className="px-4 py-3"><StatusBadge status={i.data.status || i.status} /></td>
                   <td className="px-4 py-3 text-xs text-muted-foreground">{i.data.target_date || "—"}</td>
                 </tr>

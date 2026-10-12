@@ -14,9 +14,9 @@ const RECTS = {
   D: { x: 1570, y: 1400, w: 1070, h: 650 },
 };
 const PHASES = [
-  { n: 1, name: "AI Co-Pilots", color: "#14b8a6" },
-  { n: 2, name: "AI Brains", color: "#0ea5e9" },
-  { n: 3, name: "Autonomous Agents", color: "#8b5cf6" },
+  { n: 1, name: "AI Co-Pilots", color: "#111827" },
+  { n: 2, name: "AI Brains", color: "#6b7280" },
+  { n: 3, name: "Autonomous Agents", color: "#9ca3af" },
 ];
 const ROW_LABELS = ["Function", "Lead", "Knowledge brain", "Phases", "Agents", "Systems / tools", "Accountable"];
 const ROW_Y = [0, 34, 78, 112, 150, 262, 300];
@@ -130,8 +130,8 @@ export default function FrameworkCanvas() {
     <button data-testid={`fc-rec-${e.id}`} onClick={open(e.id)} title={e.data.name}
       style={{ borderColor: color, opacity: matches(e) ? 0.3 : 1 }}
       className="block w-full text-left truncate rounded border bg-white hover:bg-slate-50 px-1.5 py-[3px] text-[11px] text-slate-700 transition-colors">
-      {!e.data.human_owner && !e.data.owner && ["agent", "process"].includes(e.etype) && <span className="text-amber-500">⚠ </span>}
-      {e.data.adoption_items?.some((a) => a.state !== "accepted") && <span className="text-sky-500" title="adoption incomplete">◷ </span>}
+      {!e.data.human_owner && !e.data.owner && ["agent", "process"].includes(e.etype) && <span className="text-gray-500">⚠ </span>}
+      {e.data.adoption_items?.some((a) => a.state !== "accepted") && <span className="text-gray-500" title="adoption incomplete">◷ </span>}
       {e.data.name}
     </button>
   ) : null;
@@ -177,7 +177,7 @@ export default function FrameworkCanvas() {
       <div ref={wrapRef} data-testid="framework-canvas"
         onWheel={onWheel} onMouseDown={onDown} onMouseMove={onMove} onMouseUp={onUp} onMouseLeave={onUp}
         className="flex-1 mx-4 mb-4 rounded-xl overflow-hidden border border-border relative cursor-grab active:cursor-grabbing"
-        style={{ background: "repeating-linear-gradient(0deg,#0b1220,#0b1220 1px,transparent 1px,transparent 24px),repeating-linear-gradient(90deg,#0b1220,#0b1220 1px,transparent 1px,transparent 24px),#070b14" }}>
+        style={{ background: "repeating-linear-gradient(0deg,#f3f4f6,#f3f4f6 1px,transparent 1px,transparent 24px),repeating-linear-gradient(90deg,#f3f4f6,#f3f4f6 1px,transparent 1px,transparent 24px),#ffffff" }}>
         <div style={{ position: "absolute", width: CW, height: CH, transformOrigin: "0 0", transform: `translate(${view.tx}px,${view.ty}px) scale(${view.scale})` }}>
           <div className="absolute rounded-2xl bg-white shadow-2xl" style={{ left: -16, top: -16, width: CW + 32, height: CH + 32 }} />
 
@@ -185,7 +185,7 @@ export default function FrameworkCanvas() {
           <Section id="sec-A" base={RECTS.A} ov={ov} title="A · Operating & Agent Organization" grip={<Grip id="sec-A" bx={RECTS.A.x} by={RECTS.A.y} />}>
             <div className="absolute flex gap-2" style={{ left: 16, top: 44, width: 560 }}>
               {PHASES.map((p) => (
-                <div key={p.n} className="flex-1 rounded-lg border p-2" style={{ borderColor: p.color }}>
+                <div key={p.n} className="flex-1 rounded-lg border p-2" style={{ borderColor: p.color, borderStyle: p.n === 3 ? "dashed" : "solid" }}>
                   <div className="text-[11px] font-bold" style={{ color: p.color }}>Phase {p.n}</div>
                   <div className="text-[12px] font-semibold text-slate-800 leading-tight">{p.name}</div>
                 </div>
@@ -235,7 +235,7 @@ export default function FrameworkCanvas() {
                     <BranchCell top={ROW_Y[1]}><Chip e={lead} color="#334155" /></BranchCell>
                     <BranchCell top={ROW_Y[2]}><Chip e={brain} color="#f59e0b" /></BranchCell>
                     <div className="absolute flex gap-1" style={{ top: ROW_Y[3], width: 262 }}>
-                      {PHASES.map((p) => <div key={p.n} className="flex-1 rounded border text-center text-[10px] py-[2px]" style={{ borderColor: p.color, color: p.color }}>P{p.n}·{agents.filter((a) => (a.data.phase || 1) === p.n).length}</div>)}
+                      {PHASES.map((p) => <div key={p.n} className="flex-1 rounded border text-center text-[10px] py-[2px]" style={{ borderColor: p.color, color: p.color, borderStyle: p.n === 3 ? "dashed" : "solid" }}>P{p.n}·{agents.filter((a) => (a.data.phase || 1) === p.n).length}</div>)}
                     </div>
                     <div className="absolute space-y-0.5" style={{ top: ROW_Y[4], width: 262 }}>
                       {agents.slice(0, 4).map((a) => <Chip key={a.id} e={a} color={b.color} />)}
@@ -244,7 +244,7 @@ export default function FrameworkCanvas() {
                     <div className="absolute flex flex-wrap gap-0.5" style={{ top: ROW_Y[5], width: 262 }}>
                       {systems.slice(0, 3).map((s) => <Chip key={s.id} e={s} color="#8b5cf6" />)}
                     </div>
-                    <BranchCell top={ROW_Y[6]}><div className="text-[10px] text-slate-500 truncate">{lead?.data.accountable_owner || <span className="text-amber-500">⚠ unassigned</span>}</div></BranchCell>
+                    <BranchCell top={ROW_Y[6]}><div className="text-[10px] text-slate-500 truncate">{lead?.data.accountable_owner || <span className="text-gray-500">⚠ unassigned</span>}</div></BranchCell>
                   </div>
                 );
               })}
@@ -299,9 +299,9 @@ export default function FrameworkCanvas() {
                       <div key={p.n} className="group relative flex-1 border-l border-slate-100 p-1 space-y-0.5">
                         {canWrite && <button data-testid={`fc-add-${a.key}-${p.n}`} onClick={addItem(a.key, p.n)} className="absolute right-0.5 top-0.5 opacity-0 group-hover:opacity-100 h-4 w-4 rounded bg-slate-200 text-slate-600 flex items-center justify-center text-[10px]">+</button>}
                         {items(p.n).slice(0, 3).map((i) => (
-                          <button key={i.id} data-testid={`fc-rec-${i.id}`} onClick={open(i.id)} style={{ borderLeftColor: p.color }} className="block w-full truncate rounded-sm border-l-2 bg-white px-1 py-[2px] text-left text-[10px] text-slate-600 hover:bg-slate-50">
+                          <button key={i.id} data-testid={`fc-rec-${i.id}`} onClick={open(i.id)} style={{ borderLeftColor: p.color, borderLeftStyle: p.n === 3 ? "dashed" : "solid" }} className="block w-full truncate rounded-sm border-l-2 bg-white px-1 py-[2px] text-left text-[10px] text-slate-600 hover:bg-slate-50">
                             {i.etype === "initiative" ? "◆ " : "● "}
-                            {i.data.adoption_items?.some((x) => x.state !== "accepted") && <span className="text-sky-500">◷ </span>}
+                            {i.data.adoption_items?.some((x) => x.state !== "accepted") && <span className="text-gray-500">◷ </span>}
                             {i.data.name}
                           </button>
                         ))}
@@ -354,10 +354,10 @@ export default function FrameworkCanvas() {
           </Section>
         </div>
 
-        <div className="absolute bottom-2 left-2 flex items-center gap-1.5 text-[11px] text-white/60 bg-black/40 rounded px-2 py-1">
+        <div className="absolute bottom-2 left-2 flex items-center gap-1.5 text-[11px] text-gray-500 bg-white/90 border border-gray-200 rounded px-2 py-1">
           <Info className="h-3 w-3" /> Zoom {(view.scale * 100).toFixed(0)}% · live records — edits reflect everywhere
         </div>
-        {loading && <div className="absolute inset-0 flex items-center justify-center bg-[#070b14]/80 text-white/80 text-sm" data-testid="fc-loading">Loading framework…</div>}
+        {loading && <div className="absolute inset-0 flex items-center justify-center bg-white/80 text-gray-600 text-sm" data-testid="fc-loading">Loading framework…</div>}
       </div>
     </div>
   );

@@ -13,21 +13,21 @@ export function StatusBadge({ status }) {
 
 export function PhasePill({ phase }) {
   if (!phase) return <span className="text-xs text-muted-foreground">—</span>;
-  const c = { 1: "168 82% 45%", 2: "199 89% 55%", 3: "262 72% 66%" }[phase] || "210 30% 70%";
+  const c = { 1: "#111827", 2: "#6b7280", 3: "#9ca3af" }[phase] || "#6b7280";
   return (
-    <span className="inline-flex items-center rounded-md px-2 py-0.5 text-[11px] font-medium border"
-      style={{ color: `hsl(${c})`, borderColor: `hsl(${c} / 0.4)`, background: `hsl(${c} / 0.12)` }}>
+    <span className="inline-flex items-center rounded-md px-2 py-0.5 text-[11px] font-medium border bg-white"
+      style={{ color: c, borderColor: "#d1d5db", borderStyle: phase === 3 ? "dashed" : "solid" }}>
       Phase {phase}
     </span>
   );
 }
 
 export function DemoTag() {
-  return <span className="inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-medium bg-chart-3/15 text-chart-3 border border-chart-3/30">DEMO</span>;
+  return <span className="inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-medium bg-gray-100 text-gray-600 border border-gray-300">DEMO</span>;
 }
 
 export function AiTag() {
-  return <span className="inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-semibold bg-primary/15 text-primary border border-primary/30">AI DRAFT</span>;
+  return <span className="inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-semibold bg-white text-gray-900 border border-gray-900">AI DRAFT</span>;
 }
 
 export function Field({ label, children }) {
