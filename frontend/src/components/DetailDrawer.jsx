@@ -1,0 +1,383 @@
+import { useEffect, useState, useCallback } from "react";
+import { useScope } from "@/context/ScopeContext";
+import { api, apiErr } from "@/lib/api";
+import { ETYPE } from "@/lib/constants";
+import { StatusBadge, PhasePill, DemoTag, AiTag, Field } from "@/components/shared";
+import { Sheet, SheetContent } from "@/components/ui/sheet";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Pencil, Save, X, ArrowUpRight, Sparkles, CheckCircle2, ArrowRight, ShieldAlert, Clock, Link2,
+} from "lucide-react";
+import { toast } from "sonner";
+
+const TABS = ["Overview", "Responsibilities", "Workflow", "Dependencies", "Playbook",
+  "Implementation", "Adoption", "Metrics", "Decisions", "History"];
+
+export default function DetailDrawer() {
+  const { selectedId, setSelectedId, currentOrg } = useScope();
+  const [ent, setEnt] = useState(null);
+  const [tab, setTab] = useState("Overview");
+  const [edit, setEdit] = useState(false);
+  const [form, setForm] = useState({});
+  const [audit, setAudit] = useState([]);
+  const [phaseOpen, setPhaseOpen] = useState(false);
+
+  const canWrite = ["platform_admin", "workspace_admin", "company_admin", "company_editor"].includes(currentOrg?.role);
+
+  const load = useCallback(() => {
+    if (!selectedId) return;
+    api.get(`/entities/${selectedId}`).then((e) => { setEnt(e); setForm(e.data); });
+  }, [selectedId]);
+
+  useEffect(() => { if (selectedId) { setTab("Overview"); setEdit(false); load(); } }, [selectedId, load]);
+  useEffect(() => {
+    if (ent && tab === "History" && currentOrg)
+      api.get(`/organizations/${ent.organization_id}/audit`).then((a) =>
+        setAudit(a.filter((x) => x.entity_id === ent.id))).catch(() => {});
+  }, [tab, ent, currentOrg]);
+
+  if (!selectedId) return null;
+  const meta = ent ? ETYPE[ent.etype] : null;
+  const Icon = meta?.icon;
+
+  const save = async () => {
+    try {
+      const upd = await api.put(`/entities/${ent.id}`, { data: form, version: ent.version });
+      setEnt({ ...upd, relationships: ent.relationships }); setEdit(false);
+      toast.success("Saved. Live views now reflect this change.");
+    } catch (e) {
+      toast.error(apiErr(e.response?.data?.detail));
+      if (e.response?.status === 409) load();
+    }
+  };
+
+  const review = async () => {
+    await api.post(`/entities/${ent.id}/review`); load();
+    toast.success("Marked reviewed");
+  };
+
+  return (
+    <Sheet open={!!selectedId} onOpenChange={(o) => !o && setSelectedId(null)}>
+      <SheetContent className="w-full sm:max-w-xl p-0 flex flex-col gap-0" data-testid="detail-drawer">
+        {!ent ? <div className="p-6 text-muted-foreground">Loading…</div> : (
+          <>
+            <div className="p-5 border-b border-border">
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex items-start gap-3 min-w-0">
+                  <div className="h-9 w-9 rounded-lg flex items-center justify-center shrink-0"
+                    style={{ background: `hsl(${meta.color} / 0.15)` }}>
+                    {Icon && <Icon className="h-5 w-5" style={{ color: `hsl(${meta.color})` }} />}
+                  </div>
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-[11px] uppercase tracking-wide text-muted-foreground">{meta.label}</span>
+                      {ent.is_demo && <DemoTag />}
+                    </div>
+                    {edit ? (
+                      <Input className="mt-1 font-display font-bold" value={form.name || ""}
+                        onChange={(e) => setForm({ ...form, name: e.target.value })} />
+                    ) : (
+                      <h2 className="font-display text-xl font-bold leading-tight truncate" data-testid="drawer-title">{ent.data.name}</h2>
+                    )}
+                    <div className="flex items-center gap-2 mt-2">
+                      <StatusBadge status={ent.status} />
+                      <PhasePill phase={ent.data.phase} />
+                      <span className="text-[11px] text-muted-foreground mono">v{ent.version}</span>
+                    </div>
+                  </div>
+                </div>
+                <button onClick={() => setSelectedId(null)} className="text-muted-foreground hover:text-foreground"><X className="h-5 w-5" /></button>
+              </div>
+              {canWrite && (
+                <div className="flex gap-2 mt-4">
+                  {!edit ? (
+                    <Button size="sm" variant="outline" data-testid="drawer-edit-btn" onClick={() => setEdit(true)}>
+                      <Pencil className="h-3.5 w-3.5 mr-1.5" /> Edit
+                    </Button>
+                  ) : (
+                    <>
+                      <Button size="sm" data-testid="drawer-save-btn" onClick={save}><Save className="h-3.5 w-3.5 mr-1.5" /> Save</Button>
+                      <Button size="sm" variant="ghost" onClick={() => { setEdit(false); setForm(ent.data); }}>Cancel</Button>
+                    </>
+                  )}
+                  <Button size="sm" variant="ghost" data-testid="drawer-review-btn" onClick={review}>
+                    <CheckCircle2 className="h-3.5 w-3.5 mr-1.5" /> Mark reviewed
+                  </Button>
+                  {["agent", "initiative"].includes(ent.etype) && (
+                    <Button size="sm" variant="outline" data-testid="phase-advance-btn" onClick={() => setPhaseOpen(true)}>
+                      <ArrowRight className="h-3.5 w-3.5 mr-1.5" /> Advance phase
+                    </Button>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* tab bar */}
+            <div className="flex gap-1 px-3 py-2 border-b border-border overflow-x-auto">
+              {TABS.map((t) => (
+                <button key={t} data-testid={`dtab-${t}`} onClick={() => setTab(t)}
+                  className={`px-2.5 py-1 rounded text-xs whitespace-nowrap ${tab === t ? "bg-primary/15 text-primary font-medium" : "text-muted-foreground hover:text-foreground"}`}>{t}</button>
+              ))}
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-5">
+              <TabBody tab={tab} ent={ent} form={form} setForm={setForm} edit={edit}
+                audit={audit} reload={load} canWrite={canWrite} />
+            </div>
+
+            {phaseOpen && <PhaseDialog ent={ent} open={phaseOpen} setOpen={setPhaseOpen} onDone={load} />}
+          </>
+        )}
+      </SheetContent>
+    </Sheet>
+  );
+}
+
+const HIDE_KEYS = ["name", "phase", "steps", "evidence_ids", "target_entity"];
+
+function TabBody({ tab, ent, form, setForm, edit, audit, reload, canWrite }) {
+  const { setSelectedId } = useScope();
+  const d = ent.data;
+  const rels = ent.relationships || [];
+
+  const EditableFields = ({ keys }) => (
+    <div className="grid gap-3">
+      {keys.filter((k) => k in d || edit).map((k) => (
+        <div key={k} className="space-y-1">
+          <Label className="text-[11px] uppercase tracking-wide text-muted-foreground">{k.replace(/_/g, " ")}</Label>
+          {edit ? (
+            (typeof d[k] === "string" && d[k]?.length > 40) || ["purpose", "rationale", "content", "business_problem", "proposed_workflow"].includes(k) ? (
+              <Textarea data-testid={`edit-${k}`} value={form[k] ?? ""} onChange={(e) => setForm({ ...form, [k]: e.target.value })} />
+            ) : (
+              <Input data-testid={`edit-${k}`} value={form[k] ?? ""} onChange={(e) => setForm({ ...form, [k]: e.target.value })} />
+            )
+          ) : (
+            <div className="text-sm text-foreground/90">{fmt(d[k])}</div>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+
+  if (tab === "Overview") {
+    const keys = Object.keys(d).filter((k) => !HIDE_KEYS.includes(k) &&
+      !["allowed_actions", "prohibited_actions", "human_owner", "operational_owner", "approval_requirements", "escalation"].includes(k));
+    return (
+      <div className="space-y-5">
+        <EditableFields keys={keys.length ? keys : ["description"]} />
+        <AiAssist ent={ent} />
+      </div>
+    );
+  }
+  if (tab === "Responsibilities")
+    return <EditableFields keys={["human_owner", "operational_owner", "owner", "assignee", "approver", "allowed_actions", "prohibited_actions", "approval_requirements", "escalation", "exceptions"]} />;
+  if (tab === "Workflow") {
+    const steps = d.steps;
+    if (!steps) return <Muted>No workflow steps on this record. Open a Workflow record to see ordered steps.</Muted>;
+    return (
+      <ol className="space-y-3">
+        {steps.map((s, i) => (
+          <li key={i} className="card-surface rounded-lg p-3">
+            <div className="flex items-center gap-2 text-xs">
+              <span className="h-5 w-5 rounded-full bg-primary/20 text-primary flex items-center justify-center font-semibold">{i + 1}</span>
+              <span className="uppercase tracking-wide text-muted-foreground">{s.actor}</span>
+              {s.approval && <span className="text-amber-400 flex items-center gap-1"><ShieldAlert className="h-3 w-3" /> approval</span>}
+            </div>
+            <div className="mt-2 text-sm"><b>{s.action}</b></div>
+            <div className="text-xs text-muted-foreground mt-1">in: {s.input} · out: {s.output} {s.handoff && `· → ${s.handoff}`}</div>
+            {s.exception_route && <div className="text-xs text-destructive mt-1">exception: {s.exception_route}</div>}
+          </li>
+        ))}
+      </ol>
+    );
+  }
+  if (tab === "Dependencies") {
+    if (!rels.length) return <Muted>No explicit relationships. Impact analysis is based on explicit relationships only.</Muted>;
+    return (
+      <div className="space-y-2">
+        <p className="text-xs text-muted-foreground mb-2">Directly linked records (click to navigate the connected model):</p>
+        {rels.map((r) => {
+          const otherId = r.from_id === ent.id ? r.to_id : r.from_id;
+          const dir = r.from_id === ent.id ? "→" : "←";
+          return (
+            <button key={r.id} data-testid={`rel-${otherId}`} onClick={() => setSelectedId(otherId)}
+              className="w-full flex items-center justify-between card-surface rounded-lg px-3 py-2.5 hover:bg-accent transition-colors text-left">
+              <span className="flex items-center gap-2 text-sm">
+                <Link2 className="h-3.5 w-3.5 text-primary" />
+                <span className="mono text-xs text-muted-foreground">{dir} {r.rel_type.replace(/_/g, " ")}</span>
+              </span>
+              <ArrowUpRight className="h-4 w-4 text-muted-foreground" />
+            </button>
+          );
+        })}
+      </div>
+    );
+  }
+  if (tab === "Playbook") {
+    if (ent.etype === "playbook") return <EditableFields keys={["source_type", "intended_outcome", "prerequisites", "proposed_workflow", "implementation_steps", "acceptance_criteria", "measurement", "fallback", "version"]} />;
+    const pb = rels.find((r) => r.to_type === "playbook" || r.from_type === "playbook");
+    return pb ? (
+      <button data-testid="goto-playbook" onClick={() => setSelectedId(pb.from_type === "playbook" ? pb.from_id : pb.to_id)}
+        className="card-surface rounded-lg p-3 w-full text-left hover:bg-accent">Open linked playbook →</button>
+    ) : <Muted>No playbook linked to this record.</Muted>;
+  }
+  if (tab === "Implementation")
+    return <EditableFields keys={["implementation_status", "status", "trigger", "inputs", "outputs", "deliverables", "start_date", "target_date", "budget", "currency"]} />;
+  if (tab === "Adoption") {
+    const a = rels.filter((r) => r.to_type === "adoption_assignment" || r.from_type === "adoption_assignment");
+    return a.length ? a.map((r) => {
+      const id = r.from_type === "adoption_assignment" ? r.from_id : r.to_id;
+      return <button key={r.id} onClick={() => setSelectedId(id)} className="card-surface rounded-lg p-3 w-full text-left hover:bg-accent mb-2">Open adoption assignment →</button>;
+    }) : <Muted>No adoption assignments linked. Learning completion ≠ operational readiness.</Muted>;
+  }
+  if (tab === "Metrics") {
+    if (ent.etype === "metric") return (
+      <div className="grid grid-cols-2 gap-3">
+        <Field label="Baseline">{fmt(d.baseline)}</Field><Field label="Target">{fmt(d.target)}</Field>
+        <Field label="Observation">{fmt(d.observation)}</Field><Field label="Verification">{fmt(d.verification_status)}</Field>
+        <Field label="Unit">{fmt(d.unit)}</Field><Field label="Period">{fmt(d.period)}</Field>
+      </div>
+    );
+    const m = rels.filter((r) => r.to_type === "metric" || r.from_type === "metric");
+    return m.length ? m.map((r) => {
+      const id = r.from_type === "metric" ? r.from_id : r.to_id;
+      return <button key={r.id} onClick={() => setSelectedId(id)} className="card-surface rounded-lg p-3 w-full text-left hover:bg-accent mb-2">Open linked metric →</button>;
+    }) : <Muted>No metrics linked. Missing values remain missing — never zero.</Muted>;
+  }
+  if (tab === "Decisions") {
+    const dec = rels.filter((r) => r.to_type === "decision" || r.from_type === "decision");
+    return dec.length ? dec.map((r) => {
+      const id = r.from_type === "decision" ? r.from_id : r.to_id;
+      return <button key={r.id} onClick={() => setSelectedId(id)} className="card-surface rounded-lg p-3 w-full text-left hover:bg-accent mb-2">Open decision record →</button>;
+    }) : <Muted>No decisions recorded for this record.</Muted>;
+  }
+  if (tab === "History")
+    return (
+      <div className="space-y-3">
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="Version">v{ent.version} (optimistic concurrency)</Field>
+          <Field label="Last reviewed">{ent.last_reviewed_at ? new Date(ent.last_reviewed_at).toLocaleString() : "never"}</Field>
+          <Field label="Created">{new Date(ent.created_at).toLocaleString()}</Field>
+          <Field label="Updated">{new Date(ent.updated_at).toLocaleString()}</Field>
+        </div>
+        <div className="text-xs uppercase tracking-wide text-muted-foreground mt-4">Audit log</div>
+        {audit.length === 0 ? <Muted>No audit events.</Muted> : audit.map((a) => (
+          <div key={a.id} className="flex items-center gap-2 text-sm card-surface rounded-md px-3 py-2">
+            <Clock className="h-3.5 w-3.5 text-muted-foreground" />
+            <span className="capitalize">{a.action.replace("_", " ")}</span>
+            <span className="text-muted-foreground">by {a.user_name}</span>
+            <span className="ml-auto text-xs text-muted-foreground">{new Date(a.at).toLocaleString()}</span>
+          </div>
+        ))}
+      </div>
+    );
+  return null;
+}
+
+function AiAssist({ ent }) {
+  const [draft, setDraft] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const [enabled, setEnabled] = useState(null);
+  useEffect(() => { api.get("/ai/status").then((s) => setEnabled(s.enabled)).catch(() => setEnabled(false)); }, []);
+  const kind = ent.etype === "agent" ? "agent_spec" : ent.etype === "opportunity" ? "opportunity" : "prerequisites";
+  const gen = async () => {
+    setBusy(true);
+    try {
+      const d = await api.post("/ai/suggest", {
+        organization_id: ent.organization_id, kind,
+        context: JSON.stringify(ent.data).slice(0, 1500),
+      });
+      setDraft(d);
+    } catch (e) { toast.error(apiErr(e.response?.data?.detail)); }
+    finally { setBusy(false); }
+  };
+  return (
+    <div className="card-surface rounded-lg p-3 mt-2">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2 text-sm font-medium"><Sparkles className="h-4 w-4 text-primary" /> AI assistance</div>
+        <Button size="sm" variant="outline" data-testid="ai-suggest-btn" disabled={!enabled || busy} onClick={gen}>
+          {enabled === false ? "No provider" : busy ? "Drafting…" : "Suggest"}
+        </Button>
+      </div>
+      {enabled === false && <p className="text-xs text-muted-foreground mt-2">AI provider not configured — generation disabled.</p>}
+      {draft && (
+        <div className="mt-3 rounded-md border border-primary/30 bg-primary/5 p-3">
+          <div className="flex items-center gap-2 mb-1.5"><AiTag /><span className="text-[11px] text-muted-foreground">Requires human acceptance · never auto-published</span></div>
+          <p className="text-sm whitespace-pre-wrap text-foreground/85">{draft.content}</p>
+          <p className="text-[11px] text-muted-foreground mt-2 italic">{draft.assumptions}</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function PhaseDialog({ ent, open, setOpen, onDone }) {
+  const [toPhase, setToPhase] = useState((ent.data.phase || 0) + 1);
+  const [approver, setApprover] = useState("");
+  const [rationale, setRationale] = useState("");
+  const [criteria, setCriteria] = useState(false);
+  const [evidence, setEvidence] = useState([]);
+  const [chosen, setChosen] = useState([]);
+  const [busy, setBusy] = useState(false);
+  useEffect(() => {
+    api.get("/entities", { organization_id: ent.organization_id, etype: "evidence" }).then(setEvidence);
+  }, [ent]);
+  const submit = async () => {
+    setBusy(true);
+    try {
+      await api.post(`/entities/${ent.id}/advance-phase`, {
+        to_phase: Number(toPhase), approver, evidence_ids: chosen,
+        criteria_met: criteria, rationale, version: ent.version,
+      });
+      toast.success(`Advanced to Phase ${toPhase}. Decision + evidence recorded.`);
+      setOpen(false); onDone();
+    } catch (e) { toast.error(apiErr(e.response?.data?.detail)); }
+    finally { setBusy(false); }
+  };
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogContent>
+        <DialogHeader><DialogTitle>Phase gate — advance "{ent.data.name}"</DialogTitle></DialogHeader>
+        <div className="space-y-3">
+          <p className="text-xs text-muted-foreground">Advancement requires criteria met, evidence, and a named approver. Methodology phase is separate from deployment status.</p>
+          <div className="space-y-1.5"><Label>Target phase</Label>
+            <Input type="number" min={1} max={3} data-testid="phase-target" value={toPhase} onChange={(e) => setToPhase(e.target.value)} /></div>
+          <div className="space-y-1.5"><Label>Named approver</Label>
+            <Input data-testid="phase-approver" value={approver} onChange={(e) => setApprover(e.target.value)} placeholder="e.g. Avery Stone" /></div>
+          <div className="space-y-1.5"><Label>Rationale</Label>
+            <Textarea data-testid="phase-rationale" value={rationale} onChange={(e) => setRationale(e.target.value)} /></div>
+          <div className="space-y-1.5"><Label>Evidence</Label>
+            {evidence.length === 0 ? <p className="text-xs text-muted-foreground">No evidence records yet — create one in Metrics & Evidence first.</p> :
+              evidence.map((ev) => (
+                <label key={ev.id} className="flex items-center gap-2 text-sm">
+                  <Checkbox checked={chosen.includes(ev.id)} data-testid={`phase-ev-${ev.id}`}
+                    onCheckedChange={(v) => setChosen(v ? [...chosen, ev.id] : chosen.filter((x) => x !== ev.id))} />
+                  {ev.data.name}
+                </label>
+              ))}
+          </div>
+          <label className="flex items-center gap-2 text-sm">
+            <Checkbox checked={criteria} data-testid="phase-criteria" onCheckedChange={setCriteria} /> Phase gate criteria met
+          </label>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
+          <Button data-testid="phase-submit" onClick={submit} disabled={busy}>Record decision & advance</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+const Muted = ({ children }) => <p className="text-sm text-muted-foreground">{children}</p>;
+function fmt(v) {
+  if (v === null || v === undefined || v === "") return <span className="text-muted-foreground italic">unknown</span>;
+  if (typeof v === "boolean") return v ? "Yes" : "No";
+  if (Array.isArray(v)) return v.join(", ") || <span className="text-muted-foreground italic">none</span>;
+  return String(v);
+}

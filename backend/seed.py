@@ -1,0 +1,391 @@
+"""Idempotent demo seed. All demo records are flagged is_demo=True and clearly labeled."""
+import os
+from datetime import datetime, timezone
+from db import db
+from auth import hash_password, verify_password
+
+CAPABILITY_LIBRARY = [
+    "Strategy & Leadership", "Product & Service Management", "Operations & Supply Chain",
+    "Marketing & Growth", "Sales", "Customer Operations & Administration",
+    "Data & Analytics", "Technology, AI & Automation", "Finance",
+    "People & HR", "Legal, Risk & Compliance",
+]
+FUNCTIONS = ["Sales", "Customer Operations & Administration", "Marketing & Growth",
+             "Product & Service Management", "Operations & Supply Chain",
+             "Data, Performance & Analytics", "Technology, AI & Automation",
+             "Finance", "People & HR"]
+PHASES = [
+    {"n": 1, "name": "AI Co-Pilots", "desc": "Improve selected tasks with human direction and review."},
+    {"n": 2, "name": "AI Brains", "desc": "Governed knowledge/context resource supporting authorized workflows."},
+    {"n": 3, "name": "Autonomous Agents", "desc": "Selected workflows execute within approved boundaries."},
+]
+VALUE_CHAIN = ["Strategy & Planning", "Product / Service & Operations", "Marketing & Sales",
+               "Delivery & Customer Success", "Feedback & Improvement"]
+
+
+def now():
+    return datetime.now(timezone.utc).isoformat()
+
+
+def ent(eid, etype, org_id, ws_id, data, status="draft", state=None, phase=None,
+        reviewed=True, demo=True):
+    if phase is not None:
+        data["phase"] = phase
+    return {
+        "id": eid, "etype": etype, "organization_id": org_id, "workspace_id": ws_id,
+        "data": data, "status": status, "state": state, "version": 1, "is_demo": demo,
+        "archived": False, "created_at": now(), "updated_at": now(),
+        "last_reviewed_at": now() if reviewed else None,
+    }
+
+
+def rel(from_id, ft, to_id, tt, rtype, org_id):
+    return {"id": f"r-{from_id}-{to_id}-{rtype}", "organization_id": org_id, "from_id": from_id,
+            "from_type": ft, "to_id": to_id, "to_type": tt, "rel_type": rtype}
+
+
+async def seed_admin():
+    email = os.environ.get("ADMIN_EMAIL", "admin@example.com").lower()
+    pw = os.environ.get("ADMIN_PASSWORD", "admin123")
+    existing = await db.users.find_one({"email": email})
+    if existing is None:
+        await db.users.insert_one({
+            "id": "u-owner", "email": email, "password_hash": hash_password(pw),
+            "name": "Wadi Bardawil", "global_role": "platform_admin", "created_at": now()})
+    elif not verify_password(pw, existing["password_hash"]):
+        await db.users.update_one({"email": email},
+                                  {"$set": {"password_hash": hash_password(pw),
+                                            "global_role": "platform_admin"}})
+
+
+DEMO_USERS = [
+    ("u-editor", "editor@bots.demo", "Dana Editor", "Demo!Editor1"),
+    ("u-viewer", "viewer@bots.demo", "Vic Viewer", "Demo!Viewer1"),
+    ("u-group", "group@bots.demo", "Gale Group", "Demo!Group1"),
+    ("u-isolated", "isolated@bots.demo", "Iris Isolated", "Demo!Isolated1"),
+]
+
+
+async def seed_demo(force=False):
+    await seed_admin()
+    marker = await db.meta.find_one({"id": "demo_seed"})
+    if marker and not force:
+        return
+    for c in ["workspaces", "organizations", "portfolios", "memberships", "entities",
+              "relationships", "views", "snapshots", "assessments", "audit"]:
+        await db[c].delete_many({"is_demo": True} if c in ("entities",) else {})
+    # demo users
+    for uid, email, name, pw in DEMO_USERS:
+        await db.users.update_one({"id": uid}, {"$set": {
+            "id": uid, "email": email, "name": name, "password_hash": hash_password(pw),
+            "global_role": "company_viewer", "created_at": now()}}, upsert=True)
+
+    workspaces, orgs, portfolios, memberships = [], [], [], []
+    entities, rels, views = [], [], []
+
+    def ws(wid, name, kind):
+        workspaces.append({"id": wid, "name": name, "kind": kind, "is_demo": True, "created_at": now()})
+
+    def org(oid, wid, name, kind, parent=None, currency="USD"):
+        orgs.append({"id": oid, "workspace_id": wid, "name": name, "org_kind": kind,
+                     "parent_id": parent, "currency": currency, "is_demo": True,
+                     "config": "compact", "created_at": now()})
+
+    def pf(pid, wid, name, members):
+        portfolios.append({"id": pid, "workspace_id": wid, "name": name,
+                           "organization_ids": members, "is_demo": True, "created_at": now()})
+
+    def mem(uid, st, sid, role):
+        memberships.append({"id": f"m-{uid}-{sid}-{role}", "user_id": uid, "scope_type": st,
+                            "scope_id": sid, "role": role, "is_demo": True})
+
+    # ---- Workspace 1: Standalone ----
+    ws("ws-northwind", "Northwind Standalone", "standalone")
+    org("o-northwind", "ws-northwind", "Northwind Trading Co", "operating_company")
+    # ---- Workspace 2: Holding group ----
+    ws("ws-atlas", "Atlas Holdings Group", "holding_group")
+    org("o-atlas", "ws-atlas", "Atlas Holdings", "holding_entity")
+    org("o-retail", "ws-atlas", "Atlas Retail", "subsidiary", "o-atlas")
+    org("o-logistics", "ws-atlas", "Atlas Logistics", "subsidiary", "o-atlas", "EUR")
+    org("o-shared", "ws-atlas", "Atlas Shared Services", "business_unit", "o-atlas")
+    # ---- Workspace 3: Investment firm ----
+    ws("ws-meridian", "Meridian Capital", "investment_firm")
+    org("o-vertex", "ws-meridian", "Vertex Software", "operating_company")
+    org("o-harbor", "ws-meridian", "Harbor Foods", "operating_company")
+    org("o-lumen", "ws-meridian", "Lumen Health", "operating_company", currency="GBP")
+    pf("pf-a", "ws-meridian", "Portfolio A", ["o-vertex", "o-harbor"])
+    pf("pf-b", "ws-meridian", "Portfolio B", ["o-harbor", "o-lumen"])  # Harbor in both -> dedupe
+    # ---- Workspace 4: Isolation tenant ----
+    ws("ws-iso", "Isolation Test Tenant", "standalone")
+    org("o-conf", "ws-iso", "Confidential Corp", "operating_company")
+
+    # memberships (explicit scoped)
+    mem("u-editor", "organization", "o-northwind", "company_editor")
+    mem("u-editor", "organization", "o-vertex", "company_editor")
+    mem("u-viewer", "organization", "o-northwind", "company_viewer")  # Northwind ONLY
+    mem("u-group", "portfolio", "pf-a", "group_viewer")
+    mem("u-group", "organization", "o-vertex", "company_viewer")  # visible member of pf-a
+    mem("u-isolated", "organization", "o-conf", "company_admin")  # different tenant only
+
+    # ---------- Northwind: full connected journey ----------
+    o, w = "o-northwind", "ws-northwind"
+    # 11 capabilities
+    cap_ids = {}
+    for i, c in enumerate(CAPABILITY_LIBRARY):
+        cid = f"cap-nw-{i}"
+        cap_ids[c] = cid
+        entities.append(ent(cid, "capability", o, w,
+                            {"name": c, "current_state": "Manual, email-driven",
+                             "target_state": "AI co-piloted", "applicable": True,
+                             "outcome_measure": "Cycle time"},
+                            status="published", reviewed=(i % 3 != 0)))
+    # human roles
+    entities.append(ent("role-nw-ceo", "role", o, w,
+                        {"name": "Chief Executive", "accountable_owner": "Jordan Blake",
+                         "type": "human_executive"}, status="published"))
+    entities.append(ent("role-nw-sales", "role", o, w,
+                        {"name": "Head of Sales", "accountable_owner": "Avery Stone",
+                         "type": "human_head"}, status="published"))
+    entities.append(ent("role-nw-coord", "role", o, w,
+                        {"name": "Sales Coordination Agent", "accountable_owner": None,
+                         "type": "coordination_agent"}, status="published", reviewed=False))
+    # process (part of Sales capability)
+    entities.append(ent("proc-nw-leadqual", "process", o, w,
+                        {"name": "Lead Qualification", "description": "Qualify inbound leads",
+                         "current_state": "Manual triage in inbox",
+                         "target_state": "Co-pilot scores & drafts replies",
+                         "owner": "Avery Stone"}, status="published"))
+    entities.append(ent("proc-nw-order", "process", o, w,
+                        {"name": "Order Processing", "owner": None,  # unassigned owner flag
+                         "current_state": "Manual entry"}, status="published", reviewed=False))
+    # systems & knowledge
+    entities.append(ent("sys-nw-crm", "system", o, w,
+                        {"name": "CRM System", "type": "system", "verified_integration": False},
+                        status="published"))
+    entities.append(ent("know-nw-playbook", "knowledge_source", o, w,
+                        {"name": "Sales Qualification Guide", "owner": "Avery Stone",
+                         "freshness_rule": "Review quarterly", "access": "Sales team"},
+                        status="published"))
+    # opportunity
+    entities.append(ent("opp-nw-1", "opportunity", o, w,
+                        {"name": "Automate lead triage", "business_problem": "Slow manual triage",
+                         "intended_outcome": "Faster response, higher conversion",
+                         "proposed_change": "Co-pilot scores leads, drafts replies for review",
+                         "candidate_phase": 1, "readiness": "medium", "effort": "medium",
+                         "risk": "low", "priority": "high", "owner": "Avery Stone",
+                         "decision": "Approved for pilot"}, status="published"))
+    entities.append(ent("opp-nw-2", "opportunity", o, w,
+                        {"name": "Order entry assistant", "business_problem": "Data entry errors",
+                         "intended_outcome": "Fewer errors", "candidate_phase": 1,
+                         "readiness": "unknown", "priority": "medium", "owner": None,
+                         "decision": "Candidate"}, status="draft", reviewed=False))
+    # agent (the record that appears in multiple views)
+    entities.append(ent("agent-nw-leadqual", "agent", o, w,
+                        {"name": "Lead Qualification Agent", "display_name": "Qualy",
+                         "purpose": "Score inbound leads and draft qualification replies for human review",
+                         "trigger": "New inbound lead in CRM",
+                         "inputs": "Lead form, enrichment data",
+                         "outputs": "Lead score, draft reply",
+                         "human_owner": "Avery Stone", "operational_owner": "Dana Editor",
+                         "allowed_actions": "Score leads; draft replies",
+                         "prohibited_actions": "Send replies without approval; modify CRM records",
+                         "approval_requirements": "Human approves all outbound replies",
+                         "status": "Pilot", "implementation_status": "pilot",
+                         "exceptions": "Low-confidence leads routed to human",
+                         "escalation": "Head of Sales"},
+                        status="published", phase=1))
+    entities.append(ent("agent-nw-fcst", "agent", o, w,
+                        {"name": "Demand Forecast Agent", "purpose": "Draft demand forecasts",
+                         "human_owner": "Jordan Blake", "status": "Under Assessment",
+                         "implementation_status": "candidate",
+                         "allowed_actions": "Produce forecast drafts",
+                         "prohibited_actions": "Change inventory"},
+                        status="published", phase=2))
+    entities.append(ent("agent-nw-report", "agent", o, w,
+                        {"name": "Compliance Report Agent", "purpose": "Compile compliance reports",
+                         "human_owner": None,  # missing owner -> cannot advance
+                         "status": "Candidate", "implementation_status": "candidate"},
+                        status="draft", phase=1, reviewed=False))
+    # workflow
+    entities.append(ent("wf-nw-leadqual", "workflow", o, w,
+                        {"name": "Lead Qualification Workflow",
+                         "steps": [
+                             {"actor": "system", "input": "New lead", "action": "Capture lead", "output": "Lead record", "handoff": "agent"},
+                             {"actor": "agent", "input": "Lead record", "action": "Score & draft reply", "output": "Score + draft", "handoff": "human", "approval": True},
+                             {"actor": "human", "input": "Draft", "action": "Review & send", "output": "Qualified lead", "exception_route": "Reject → re-queue"},
+                         ]}, status="published"))
+    # playbook
+    entities.append(ent("pb-nw-leadqual", "playbook", o, w,
+                        {"name": "Lead Qualification Co-Pilot Playbook",
+                         "source_type": "provider_authored",
+                         "business_problem": "Manual lead triage is slow and inconsistent",
+                         "applicability": "Inbound B2B sales",
+                         "intended_outcome": "Faster, consistent qualification with human oversight",
+                         "current_workflow": "Manual inbox triage",
+                         "proposed_workflow": "Co-pilot scores and drafts; human approves",
+                         "prerequisites": "CRM access, qualification guide, named owner",
+                         "human_responsibilities": "Approve replies, handle exceptions",
+                         "agent_responsibilities": "Score leads, draft replies",
+                         "buy_build_hybrid": "Hybrid", "cost_categories": "Tooling, setup, training",
+                         "implementation_steps": "1. Baseline  2. Pilot  3. Evaluate  4. Expand",
+                         "testing": "Shadow mode comparison",
+                         "acceptance_criteria": "Human-approved reply quality maintained",
+                         "training": "Sales team onboarding", "sop_changes": "Updated triage SOP",
+                         "measurement": "Response time, conversion", "fallback": "Revert to manual",
+                         "version": "1.0", "review_date": now()}, status="published"))
+    # initiative + phase gate
+    entities.append(ent("init-nw-1", "initiative", o, w,
+                        {"name": "Sales Co-Pilot Rollout", "sponsor_org": "o-northwind",
+                         "participating_companies": ["o-northwind"],
+                         "business_problem": "Slow lead handling",
+                         "phase": 1, "status": "in_progress", "owner": "Avery Stone",
+                         "contributors": ["Dana Editor"], "budget": 25000, "currency": "USD",
+                         "start_date": "2026-02-01", "target_date": "2026-06-30",
+                         "deliverables": "Pilot co-pilot, revised SOP",
+                         "acceptance_criteria": "Pilot evaluation accepted",
+                         "adoption_requirements": "Team trained on new SOP"},
+                        status="published", phase=1))
+    # adoption assignment
+    entities.append(ent("adopt-nw-1", "adoption_assignment", o, w,
+                        {"name": "Draft revised Lead Qualification SOP",
+                         "assignee": "Dana Editor", "status": "in_progress",
+                         "note": "Learning completion is not operational readiness"},
+                        status="published"))
+    entities.append(ent("adopt-nw-2", "adoption_assignment", o, w,
+                        {"name": "Review agent boundaries", "assignee": "Avery Stone",
+                         "status": "accepted"}, status="published"))
+    # metrics + evidence
+    entities.append(ent("metric-nw-1", "metric", o, w,
+                        {"name": "Lead response time", "unit": "hours", "definition": "Time to first reply",
+                         "calculation": "avg(reply_time - received_time)", "owner": "Avery Stone",
+                         "source": "CRM (manual report)", "period": "2026-Q1",
+                         "baseline": 12, "target": 3, "observation": 7,
+                         "verification_status": "pilot_observation"}, status="published"))
+    entities.append(ent("metric-nw-2", "metric", o, w,
+                        {"name": "Qualification accuracy", "unit": "%", "definition": "Correctly qualified",
+                         "owner": "Avery Stone", "baseline": None, "target": 90,
+                         "observation": None, "verification_status": "expected_benefit"},
+                        status="draft"))  # missing values stay missing
+    entities.append(ent("ev-nw-1", "evidence", o, w,
+                        {"name": "Pilot evaluation note", "type": "note",
+                         "content": "Shadow-mode pilot showed faster replies with maintained quality.",
+                         "recorded_by": "Dana Editor"}, status="published"))
+    entities.append(ent("dec-nw-1", "decision", o, w,
+                        {"name": "Approve Lead Qualification pilot", "approver": "Avery Stone",
+                         "rationale": "Baseline and evaluation criteria met",
+                         "evidence_ids": ["ev-nw-1"], "decided_at": now(),
+                         "target_entity": "opp-nw-1"}, status="published"))
+
+    # relationships (the connected chain)
+    R = [
+        ("cap-nw-4", "capability", "proc-nw-leadqual", "process", "supports"),  # Sales cap -> process
+        ("proc-nw-leadqual", "process", "opp-nw-1", "opportunity", "supports"),
+        ("opp-nw-1", "opportunity", "agent-nw-leadqual", "agent", "depends_on"),
+        ("agent-nw-leadqual", "agent", "wf-nw-leadqual", "workflow", "supports"),
+        ("agent-nw-leadqual", "agent", "pb-nw-leadqual", "playbook", "supports"),
+        ("agent-nw-leadqual", "agent", "sys-nw-crm", "system", "depends_on"),
+        ("agent-nw-leadqual", "agent", "know-nw-playbook", "knowledge_source", "depends_on"),
+        ("init-nw-1", "initiative", "agent-nw-leadqual", "agent", "supports"),
+        ("init-nw-1", "initiative", "adopt-nw-1", "adoption_assignment", "supports"),
+        ("init-nw-1", "initiative", "metric-nw-1", "metric", "supports"),
+        ("metric-nw-1", "metric", "ev-nw-1", "evidence", "supports"),
+        ("dec-nw-1", "decision", "opp-nw-1", "opportunity", "approves"),
+        ("role-nw-sales", "role", "proc-nw-leadqual", "process", "reports_to"),
+        ("role-nw-ceo", "role", "role-nw-sales", "role", "coordinates"),
+        ("agent-nw-leadqual", "agent", "role-nw-sales", "role", "reports_to"),
+    ]
+    for a, at, b, bt, rt in R:
+        rels.append(rel(a, at, b, bt, rt, o))
+
+    # views for Northwind
+    def view(vid, kind, name, placements):
+        views.append({"id": vid, "organization_id": o, "workspace_id": w, "kind": kind,
+                      "name": name, "placements": placements, "is_demo": True, "updated_at": now()})
+
+    view("v-nw-map", "operating_map", "Operating Map", {
+        "role-nw-ceo": {"x": 400, "y": 20}, "role-nw-sales": {"x": 200, "y": 140},
+        "role-nw-coord": {"x": 600, "y": 140}, "proc-nw-leadqual": {"x": 120, "y": 280},
+        "agent-nw-leadqual": {"x": 320, "y": 280}, "agent-nw-fcst": {"x": 520, "y": 280},
+        "sys-nw-crm": {"x": 220, "y": 420}, "know-nw-playbook": {"x": 440, "y": 420}})
+    view("v-nw-cap", "capability_model", "Capability Model", {})
+    view("v-nw-vc", "value_chain", "Value Chain",
+         {"agent-nw-leadqual": {"x": 300, "y": 120}})
+    view("v-nw-road", "roadmap", "Transformation Roadmap", {})
+
+    # ---------- Lighter data for other companies (for oversight) ----------
+    def mini(org_id, ws_id, prefix, agent_phases, currency="USD", with_init=True):
+        for i, c in enumerate(CAPABILITY_LIBRARY[:5]):
+            entities.append(ent(f"cap-{prefix}-{i}", "capability", org_id, ws_id,
+                                {"name": c, "current_state": "Manual", "target_state": "Co-piloted",
+                                 "applicable": True}, status="published"))
+        for i, ph in enumerate(agent_phases):
+            entities.append(ent(f"agent-{prefix}-{i}", "agent", org_id, ws_id,
+                                {"name": f"{prefix.title()} Agent {i+1}",
+                                 "purpose": "Support a bounded workflow",
+                                 "human_owner": "Named Owner" if i == 0 else None,
+                                 "status": "Pilot" if ph == 1 else "Candidate",
+                                 "implementation_status": "pilot" if ph == 1 else "candidate"},
+                                status="published", phase=ph))
+            entities.append(ent(f"opp-{prefix}-{i}", "opportunity", org_id, ws_id,
+                                {"name": f"Opportunity {i+1}", "priority": "medium",
+                                 "candidate_phase": ph}, status="published"))
+        if with_init:
+            entities.append(ent(f"init-{prefix}-1", "initiative", org_id, ws_id,
+                                {"name": f"{prefix.title()} Transformation", "phase": 1,
+                                 "status": "in_progress", "owner": "Named Owner",
+                                 "currency": currency, "budget": 10000}, status="published",
+                                phase=1))
+        views.append({"id": f"v-{prefix}-map", "organization_id": org_id, "workspace_id": ws_id,
+                      "kind": "operating_map", "name": "Operating Map", "placements": {},
+                      "is_demo": True, "updated_at": now()})
+
+    mini("o-vertex", "ws-meridian", "vx", [1, 2, 3])
+    mini("o-harbor", "ws-meridian", "hb", [1, 2])
+    mini("o-lumen", "ws-meridian", "lm", [1], "GBP")
+    mini("o-retail", "ws-atlas", "rt", [1, 2])
+    mini("o-logistics", "ws-atlas", "lg", [1], "EUR")
+    mini("o-conf", "ws-iso", "cf", [1], with_init=True)
+    # shared-service group initiative
+    entities.append(ent("init-atlas-shared", "initiative", "o-shared", "ws-atlas",
+                        {"name": "Shared Services AI Desk (Group)", "phase": 1,
+                         "status": "in_progress", "owner": "Group PMO",
+                         "participating_companies": ["o-retail", "o-logistics"],
+                         "budget": 40000, "currency": "USD",
+                         "note": "Group initiative with company-specific workstreams"},
+                        status="published", phase=1))
+
+    # bulk insert
+    await db.workspaces.insert_many(workspaces)
+    await db.organizations.insert_many(orgs)
+    await db.portfolios.insert_many(portfolios)
+    await db.memberships.insert_many(memberships)
+    for e in entities:
+        e["is_demo"] = True
+    await db.entities.insert_many(entities)
+    await db.relationships.insert_many([{**r, "is_demo": True} for r in rels])
+    await db.views.insert_many(views)
+
+    # assessment for Northwind (with unknown + N/A examples)
+    ans = {}
+    scores = {"Business goals": 4, "Process maturity": 3, "Knowledge readiness": 2,
+              "Data readiness": None, "Integration readiness": 2, "Human ownership": 4,
+              "Adoption readiness": 3, "Risk and governance": 3, "Measurement readiness": 2}
+    for dim, sc in scores.items():
+        ans[dim] = {"dimension": dim, "response": sc, "evidence": "Demo baseline",
+                    "assessor": "Avery Stone", "confidence": "medium", "notes": "",
+                    "unknown": sc is None, "not_applicable": False, "date": now()}
+    await db.assessments.insert_one({"organization_id": "o-northwind", "answers": ans,
+                                     "is_demo": True})
+
+    # publish one snapshot for Northwind
+    nw_entities = [e for e in entities if e["organization_id"] == "o-northwind"]
+    nw_rels = [r for r in rels if r["organization_id"] == "o-northwind"]
+    nw_views = [v for v in views if v["organization_id"] == "o-northwind"]
+    await db.snapshots.insert_one({
+        "id": "snap-nw-1", "organization_id": "o-northwind", "published_by": "Wadi Bardawil",
+        "published_at": now(), "change_summary": "Initial baseline publication (demo).",
+        "payload": {"entities": nw_entities, "relationships": nw_rels, "views": nw_views},
+        "is_demo": True})
+
+    await db.meta.update_one({"id": "demo_seed"}, {"$set": {"id": "demo_seed", "at": now()}},
+                             upsert=True)

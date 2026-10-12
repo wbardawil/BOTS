@@ -1,0 +1,155 @@
+import { useEffect, useState, useCallback } from "react";
+import { useScope } from "@/context/ScopeContext";
+import { api, apiErr } from "@/lib/api";
+import { StatusBadge, Empty } from "@/components/shared";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { LineChart as LineIcon, AlertTriangle, Clock, UserX, UploadCloud, Download, History } from "lucide-react";
+import { toast } from "sonner";
+
+export default function ExecutiveOverview() {
+  const { orgId, currentOrg, setSelectedId } = useScope();
+  const [all, setAll] = useState([]);
+  const [diff, setDiff] = useState(null);
+  const [snaps, setSnaps] = useState([]);
+  const [pubOpen, setPubOpen] = useState(false);
+  const canPublish = ["platform_admin", "workspace_admin", "company_admin"].includes(currentOrg?.role);
+
+  const load = useCallback(() => {
+    if (!orgId) return;
+    api.get("/entities", { organization_id: orgId }).then(setAll);
+    api.get(`/organizations/${orgId}/diff`).then(setDiff).catch(() => setDiff(null));
+    api.get(`/organizations/${orgId}/snapshots`).then(setSnaps).catch(() => setSnaps([]));
+  }, [orgId]);
+  useEffect(load, [load]);
+  if (!orgId) return <Empty icon={LineIcon} title="Select a company" />;
+
+  const agents = all.filter((e) => e.etype === "agent");
+  const inits = all.filter((e) => e.etype === "initiative");
+  const opps = all.filter((e) => e.etype === "opportunity");
+  const unassigned = all.filter((e) => ["agent", "process", "opportunity", "initiative"].includes(e.etype) &&
+    !(e.data.human_owner || e.data.owner));
+  const overdue = all.filter((e) => !e.last_reviewed_at);
+  const missingEvidence = agents.filter((a) => (a.data.phase || 1) >= 2 &&
+    !all.some((ev) => ev.etype === "evidence"));
+
+  const exportOrg = async () => {
+    try {
+      const data = await api.get(`/organizations/${orgId}/export`);
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a"); a.href = url; a.download = `${currentOrg.name}-export.json`; a.click();
+      toast.success("Export downloaded (authorized)");
+    } catch (e) { toast.error(apiErr(e.response?.data?.detail)); }
+  };
+
+  return (
+    <div className="p-6 max-w-[1400px] mx-auto fade-up">
+      <div className="flex items-center justify-between mb-5 flex-wrap gap-2">
+        <div>
+          <h1 className="font-display text-2xl font-bold">Executive Overview</h1>
+          <p className="text-sm text-muted-foreground">{currentOrg?.name} · living model health</p>
+        </div>
+        <div className="flex gap-2">
+          <Button variant="outline" size="sm" data-testid="export-btn" onClick={exportOrg}><Download className="h-4 w-4 mr-1.5" /> Export</Button>
+          {canPublish && <Button size="sm" data-testid="publish-btn" onClick={() => setPubOpen(true)}><UploadCloud className="h-4 w-4 mr-1.5" /> Publish snapshot</Button>}
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
+        <Stat label="Agents" value={agents.length} sub={`${agents.filter(a => (a.data.phase||1)===1).length} P1 · ${agents.filter(a => a.data.phase===2).length} P2 · ${agents.filter(a => a.data.phase===3).length} P3`} />
+        <Stat label="Initiatives" value={inits.length} sub={`${inits.filter(i => (i.data.status||i.status)==="in_progress").length} in progress`} />
+        <Stat label="Opportunities" value={opps.length} />
+        <Stat label="Records" value={all.length} sub="persisted" />
+      </div>
+
+      <div className="grid md:grid-cols-2 gap-4">
+        <FlagCard title="Living-model flags" icon={AlertTriangle}>
+          <Flag icon={UserX} label="Unassigned owners" items={unassigned} setSel={setSelectedId} color="text-amber-400" />
+          <Flag icon={Clock} label="Never reviewed" items={overdue} setSel={setSelectedId} color="text-sky-400" />
+          <Flag icon={AlertTriangle} label="Phase ≥2 without evidence" items={missingEvidence} setSel={setSelectedId} color="text-rose-400" />
+        </FlagCard>
+
+        <div className="card-surface rounded-xl p-4">
+          <div className="flex items-center gap-2 mb-3 font-medium"><History className="h-4 w-4 text-primary" /> Changes since last publication</div>
+          {!diff?.has_snapshot ? <p className="text-sm text-muted-foreground">No published snapshot yet. Published history is immutable once created.</p> : (
+            <div className="space-y-2 text-sm">
+              <p className="text-xs text-muted-foreground">Last published {new Date(diff.published_at).toLocaleString()}</p>
+              <DiffRow label="Added" items={diff.added} color="text-emerald-400" />
+              <DiffRow label="Changed" items={diff.changed} color="text-amber-400" />
+              <DiffRow label="Removed" items={diff.removed} color="text-rose-400" />
+            </div>
+          )}
+          <div className="mt-4 text-xs uppercase tracking-wide text-muted-foreground">Published snapshots</div>
+          <div className="mt-2 space-y-1.5">
+            {snaps.length === 0 ? <p className="text-sm text-muted-foreground">None</p> : snaps.map((s) => (
+              <div key={s.id} className="flex items-center justify-between text-sm card-surface rounded-md px-3 py-2">
+                <span>{s.change_summary}</span>
+                <span className="text-xs text-muted-foreground">{s.entity_count} records · {new Date(s.published_at).toLocaleDateString()}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {pubOpen && <PublishDialog orgId={orgId} open={pubOpen} setOpen={setPubOpen} onDone={load} />}
+    </div>
+  );
+}
+
+function Stat({ label, value, sub }) {
+  return (
+    <div className="card-surface rounded-xl p-4">
+      <div className="text-3xl font-display font-bold">{value}</div>
+      <div className="text-sm text-foreground/80">{label}</div>
+      {sub && <div className="text-[11px] text-muted-foreground mt-0.5">{sub}</div>}
+    </div>
+  );
+}
+function FlagCard({ title, icon: Icon, children }) {
+  return <div className="card-surface rounded-xl p-4"><div className="flex items-center gap-2 mb-3 font-medium"><Icon className="h-4 w-4 text-amber-400" /> {title}</div><div className="space-y-3">{children}</div></div>;
+}
+function Flag({ icon: Icon, label, items, setSel, color }) {
+  return (
+    <div>
+      <div className={`flex items-center gap-2 text-sm ${color}`}><Icon className="h-3.5 w-3.5" /> {label} <span className="ml-auto font-semibold">{items.length}</span></div>
+      <div className="mt-1 flex flex-wrap gap-1.5">
+        {items.slice(0, 6).map((e) => (
+          <button key={e.id} data-testid={`flag-${e.id}`} onClick={() => setSel(e.id)}
+            className="text-[11px] rounded px-2 py-0.5 bg-muted hover:bg-accent">{e.data.name}</button>
+        ))}
+        {items.length === 0 && <span className="text-[11px] text-muted-foreground">none</span>}
+      </div>
+    </div>
+  );
+}
+function DiffRow({ label, items, color }) {
+  return <div><span className={`text-xs ${color}`}>{label} ({items.length})</span> {items.length > 0 && <span className="text-xs text-muted-foreground">{items.slice(0, 5).join(", ")}</span>}</div>;
+}
+function PublishDialog({ orgId, open, setOpen, onDone }) {
+  const [summary, setSummary] = useState("");
+  const [busy, setBusy] = useState(false);
+  const submit = async () => {
+    setBusy(true);
+    try {
+      await api.post(`/organizations/${orgId}/publish`, { change_summary: summary || "Snapshot" });
+      toast.success("Published. Snapshot is now immutable.");
+      setOpen(false); onDone();
+    } catch (e) { toast.error(apiErr(e.response?.data?.detail)); }
+    finally { setBusy(false); }
+  };
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogContent>
+        <DialogHeader><DialogTitle>Publish snapshot</DialogTitle></DialogHeader>
+        <p className="text-sm text-muted-foreground">Creates an immutable snapshot of current records, layout and playbook versions. New edits continue in draft without altering history.</p>
+        <Input data-testid="publish-summary" placeholder="Change summary" value={summary} onChange={(e) => setSummary(e.target.value)} />
+        <DialogFooter>
+          <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
+          <Button data-testid="publish-confirm" onClick={submit} disabled={busy}>Publish</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
