@@ -66,9 +66,9 @@ export default function ExecutiveOverview() {
 
       <div className="grid md:grid-cols-2 gap-4">
         <FlagCard title="Living-model flags" icon={AlertTriangle}>
-          <Flag icon={UserX} label="Unassigned owners" items={unassigned} setSel={setSelectedId} color="text-amber-400" />
-          <Flag icon={Clock} label="Never reviewed" items={overdue} setSel={setSelectedId} color="text-sky-400" />
-          <Flag icon={AlertTriangle} label="Phase ≥2 without evidence" items={missingEvidence} setSel={setSelectedId} color="text-rose-400" />
+          <Flag icon={UserX} label="Unassigned owners" items={unassigned} setSel={setSelectedId} color="text-amber-600" />
+          <Flag icon={Clock} label="Never reviewed" items={overdue} setSel={setSelectedId} color="text-blue-600" />
+          <Flag icon={AlertTriangle} label="Phase ≥2 without evidence" items={missingEvidence} setSel={setSelectedId} color="text-red-600" />
         </FlagCard>
 
         <div className="card-surface rounded-xl p-4">
@@ -76,9 +76,9 @@ export default function ExecutiveOverview() {
           {!diff?.has_snapshot ? <p className="text-sm text-muted-foreground">No published snapshot yet. Published history is immutable once created.</p> : (
             <div className="space-y-2 text-sm">
               <p className="text-xs text-muted-foreground">Last published {new Date(diff.published_at).toLocaleString()}</p>
-              <DiffRow label="Added" items={diff.added} color="text-emerald-400" />
-              <DiffRow label="Changed" items={diff.changed} color="text-amber-400" />
-              <DiffRow label="Removed" items={diff.removed} color="text-rose-400" />
+              <DiffRow label="Added" items={diff.added} color="text-green-600" />
+              <DiffRow label="Changed" items={diff.changed} color="text-amber-600" />
+              <DiffRow label="Removed" items={diff.removed} color="text-red-600" />
             </div>
           )}
           <div className="mt-4 text-xs uppercase tracking-wide text-muted-foreground">Published snapshots</div>
@@ -108,7 +108,7 @@ function Stat({ label, value, sub }) {
   );
 }
 function FlagCard({ title, icon: Icon, children }) {
-  return <div className="card-surface rounded-xl p-4"><div className="flex items-center gap-2 mb-3 font-medium"><Icon className="h-4 w-4 text-amber-400" /> {title}</div><div className="space-y-3">{children}</div></div>;
+  return <div className="card-surface rounded-xl p-4"><div className="flex items-center gap-2 mb-3 font-medium"><Icon className="h-4 w-4 text-amber-600" /> {title}</div><div className="space-y-3">{children}</div></div>;
 }
 function Flag({ icon: Icon, label, items, setSel, color }) {
   return (

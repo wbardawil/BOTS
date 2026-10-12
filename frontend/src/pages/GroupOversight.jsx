@@ -31,7 +31,7 @@ export default function GroupOversight() {
       {!data ? <p className="text-muted-foreground text-sm">Loading…</p> : (
         <>
           {data.restricted_count > 0 && (
-            <div className="flex items-center gap-2 text-sm text-amber-300 bg-amber-500/10 border border-amber-500/30 rounded-lg px-3 py-2 mb-4">
+            <div className="flex items-center gap-2 text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mb-4">
               <Lock className="h-4 w-4" /> {data.restricted_count} company/companies hidden due to access restrictions — names and counts withheld.
             </div>
           )}

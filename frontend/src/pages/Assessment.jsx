@@ -33,7 +33,7 @@ export default function Assessment() {
           <div className="text-xs text-muted-foreground">avg of {a.score?.counted || 0} answered</div>
         </div>
         <div className="text-xs text-muted-foreground space-y-0.5">
-          <div>Unknown: <b className="text-amber-400">{a.score?.unknown || 0}</b> (excluded)</div>
+          <div>Unknown: <b className="text-amber-600">{a.score?.unknown || 0}</b> (excluded)</div>
           <div>Not applicable: <b>{a.score?.not_applicable || 0}</b></div>
           <div className="italic">Readiness is separate from priority, progress and realized value.</div>
         </div>
@@ -75,7 +75,7 @@ function DimRow({ dim, answer, orgId, canWrite, onSaved }) {
         <div>
           <div className="font-medium text-sm">{dim}</div>
           <div className="text-xs text-muted-foreground">
-            {answer ? (answer.unknown ? <span className="text-amber-400">Unknown</span> : answer.not_applicable ? "Not applicable" : `Score: ${answer.response}`) : "Not answered"}
+            {answer ? (answer.unknown ? <span className="text-amber-600">Unknown</span> : answer.not_applicable ? "Not applicable" : `Score: ${answer.response}`) : "Not answered"}
           </div>
         </div>
         {canWrite && <Button size="sm" variant="outline" data-testid={`assess-edit-${dim}`} onClick={() => setOpen(!open)}>{open ? "Close" : "Edit"}</Button>}

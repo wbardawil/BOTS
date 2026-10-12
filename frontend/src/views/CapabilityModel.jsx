@@ -56,9 +56,9 @@ export default function CapabilityModel() {
                 <p className="text-foreground/85 mt-0.5">{stateVal || <span className="italic text-muted-foreground">unknown</span>}</p>
               </div>
               <div className="flex flex-wrap gap-1.5 mt-3 text-[11px]">
-                <Chip n={procs.length} label="processes" color="199 89% 55%" />
-                <Chip n={agents.length} label="agents" color="168 82% 45%" />
-                <Chip n={opps.length} label="opportunities" color="38 92% 56%" />
+                <Chip n={procs.length} label="processes" color="217 91% 50%" />
+                <Chip n={agents.length} label="agents" color="142 71% 38%" />
+                <Chip n={opps.length} label="opportunities" color="38 92% 42%" />
               </div>
               {agents.length > 0 && (
                 <div className="mt-3 flex flex-wrap gap-1">

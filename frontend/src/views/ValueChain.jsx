@@ -48,7 +48,7 @@ export default function ValueChain() {
               </div>
               {i === 2 && agents.slice(0, 2).map((a) => (
                 <button key={a.id} data-testid={`vc-agent-${a.id}`} onClick={() => setSelectedId(a.id)}
-                  className="mt-2 flex items-center gap-1.5 text-[11px] rounded-md px-2 py-1.5 border border-primary/40 bg-primary/10 text-primary">
+                  className="mt-2 flex items-center gap-1.5 text-[11px] rounded-md px-2 py-1.5 border border-green-200 bg-green-50 text-green-700">
                   <Bot className="h-3 w-3" /> {a.data.name}
                 </button>
               ))}

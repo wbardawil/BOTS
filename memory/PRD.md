@@ -17,8 +17,8 @@ in MVP.
 - Build order: architecture + data model first, then a single end-to-end connected company journey.
 
 ## Architecture
-- **Frontend**: Vite + React 19 + Tailwind v4 + shadcn/ui + React Flow. Dark enterprise theme
-  (Sora display / IBM Plex Sans / IBM Plex Mono). Single app shell (`Shell.jsx`) with header
+- **Frontend**: Vite + React 19 + Tailwind v4 + shadcn/ui + React Flow. LIGHT whiteboard theme per `memory/DESIGN.md`
+  (Inter only; white paper, hairline borders, function-family hues). Single app shell (`Shell.jsx`) with header
   (workspace switcher, scope selector, current/target, draft/published, search) + left nav.
   Contexts: `AuthContext`, `ScopeContext`. Detail drawer with 10 contextual tabs.
 - **Backend**: FastAPI + MongoDB (motor). Modules: `auth.py` (JWT Bearer + bcrypt + brute-force),
