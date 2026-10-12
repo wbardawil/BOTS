@@ -134,9 +134,8 @@ export default function FrameworkCanvas() {
   // ---- board primitives ------------------------------------------------------------------
   const Chip = ({ e, color = LINE, code, phase }) => e ? (
     <button data-testid={`fc-rec-${e.id}`} onClick={open(e.id)} title={e.data.name}
-      style={{ borderColor: LINE, borderLeftColor: color, borderLeftWidth: 2, opacity: matches(e) ? 0.3 : 1,
-        ...(phase ? { borderLeftColor: phaseMeta(phase).color, borderLeftStyle: phaseMeta(phase).dashed ? "dashed" : "solid" } : {}) }}
-      className="flex w-full items-center gap-1 rounded-md border bg-white hover:bg-gray-50 px-1.5 py-[3px] text-[11px] text-gray-700 text-left transition-colors">
+      style={{ borderColor: LINE, boxShadow: `inset 3px 0 0 ${phase ? phaseMeta(phase).color : color}`, opacity: matches(e) ? 0.3 : 1 }}
+      className="flex w-full items-center gap-1 rounded-md border bg-white hover:bg-gray-50 pl-2.5 pr-1.5 py-[3px] text-[11px] text-gray-700 text-left transition-colors">
       {code && <span className="mono text-[9px] text-gray-400 shrink-0">{code}</span>}
       {phase && <span className="text-[9px] font-semibold shrink-0" style={{ color: phaseMeta(phase).color }}>P{phase}</span>}
       {!e.data.human_owner && !e.data.owner && ["agent", "process"].includes(e.etype) && <span className="text-amber-500 shrink-0" title="no accountable owner">⚠</span>}
@@ -207,10 +206,11 @@ export default function FrameworkCanvas() {
 
             {/* executives → chief */}
             <div className="absolute" style={{ left: 600, top: 40, width: 1440 }}>
+              <div className="text-center text-[11px] text-gray-500 mb-1">{currentOrg?.name} · <span className="capitalize">{currentOrg?.org_kind?.replace(/_/g, " ")}</span> · human executive team</div>
               <div className="flex justify-center gap-3">
                 {entities.filter((e) => e.etype === "role" && e.data.type === "human_executive").map((r) => <ExecCard key={r.id} r={r} onClick={open(r.id)} />)}
               </div>
-              <div className="mx-auto mt-2 h-4 w-px bg-gray-300" />
+              <div className="mx-auto mt-1 h-3 w-px bg-gray-300" />
               <div className="flex flex-col items-center">
                 {(() => {
                   const chief = entities.find((e) => e.etype === "role" && e.data.type === "coordination_agent");
@@ -218,7 +218,6 @@ export default function FrameworkCanvas() {
                     <button onClick={chief ? open(chief.id) : undefined} data-testid={chief ? `fc-rec-${chief.id}` : undefined} className="flex flex-col items-center gap-1">
                       <Avatar color={INK} size={56} icon={Bot} />
                       <NamePill>{chief?.data.name || "Chief agent"}</NamePill>
-                      <span className="text-[11px] text-gray-500">{currentOrg?.name} · <span className="capitalize">{currentOrg?.org_kind?.replace(/_/g, " ")}</span></span>
                     </button>
                   );
                 })()}
@@ -246,7 +245,7 @@ export default function FrameworkCanvas() {
             </div>
 
             {/* team band */}
-            <div className="absolute" style={{ left: 8, top: 196, width: 2624, height: 576 }}>
+            <div className="absolute" style={{ left: 8, top: 216, width: 2624, height: 556 }}>
               {ROW_LABELS.map((lbl, i) => (
                 <div key={lbl} className="absolute text-[10px] font-semibold uppercase tracking-wide text-gray-400 text-right pr-2" style={{ left: 0, width: 150, top: ROW_Y[i] + (i === 1 ? 24 : 0) }}>{lbl}</div>
               ))}
@@ -370,8 +369,8 @@ export default function FrameworkCanvas() {
                         {canWrite && <button data-testid={`fc-add-${a.key}-${p.n}`} onClick={addItem(a.key, p.n)} className="absolute right-0.5 top-0.5 opacity-0 group-hover:opacity-100 h-4 w-4 rounded border border-gray-300 bg-white text-gray-600 flex items-center justify-center text-[10px]">+</button>}
                         {items(p.n).slice(0, 3).map((i) => (
                           <button key={i.id} data-testid={`fc-rec-${i.id}`} onClick={open(i.id)}
-                            style={{ borderColor: p.dashed ? "#9ca3af" : LINE, borderStyle: p.dashed ? "dashed" : "solid", borderLeftColor: a.color, borderLeftWidth: 2, borderLeftStyle: "solid" }}
-                            className="block w-full truncate rounded-md border bg-white px-1.5 py-[2px] text-left text-[10px] text-gray-700 hover:bg-gray-50">
+                            style={{ borderColor: p.dashed ? "#9ca3af" : LINE, borderStyle: p.dashed ? "dashed" : "solid", boxShadow: `inset 3px 0 0 ${a.color}` }}
+                            className="block w-full truncate rounded-md border bg-white pl-2.5 pr-1.5 py-[2px] text-left text-[10px] text-gray-700 hover:bg-gray-50">
                             {i.etype === "initiative" ? "◆ " : "● "}
                             {i.data.adoption_items?.some((x) => x.state !== "accepted") && <span className="text-blue-500">◷ </span>}
                             {i.data.name}

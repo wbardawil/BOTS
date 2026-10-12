@@ -69,7 +69,7 @@ Radius: cards 10px, chips 6px, pills 999px. Spacing base 4px.
   `"{n}. {Area name}"` 13px/700 black on white, hairline bottom border. Body =
   groups with a code label `"{n}.{g} Group name"` 10px/600 gray, then white chips
   with hairline border; family hue only as the chip's left border.
-- **Chip** (any record): white, 1px border (family hue or `#e5e7eb`), 6px radius,
+- **Chip** (any record): white, 1px `#e5e7eb` border, a 3px inset stripe in the family hue on the left (`box-shadow: inset 3px 0 0`), 6px radius,
   11px text `#374151`, hover `#f9fafb`. Warnings are prefixed glyphs in amber.
 - **Roadmap matrix**: gray-100 header band; each row has a 4px family stripe at
   the left and the family avatar dot; cells hold white hairline cards; Phase 3
