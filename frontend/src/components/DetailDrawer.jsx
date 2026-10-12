@@ -1,8 +1,8 @@
 import { useEffect, useState, useCallback } from "react";
 import { useScope } from "@/context/ScopeContext";
 import { api, apiErr } from "@/lib/api";
-import { ETYPE } from "@/lib/constants";
-import { StatusBadge, PhasePill, DemoTag, AiTag, Field } from "@/components/shared";
+import { ETYPE, SELECT_FIELDS, NUMERIC_FIELDS, SOURCING_RISK_KEYS, SOURCING, COST_PERIODS, RISK_LEVELS, DATA_SENSITIVITY } from "@/lib/constants";
+import { StatusBadge, PhasePill, DemoTag, AiTag, Field, SourcingBadge, RiskDot } from "@/components/shared";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -28,8 +28,14 @@ export default function DetailDrawer() {
   const [phaseOpen, setPhaseOpen] = useState(false);
 
   const canWrite = ["platform_admin", "workspace_admin", "company_admin", "company_editor"].includes(currentOrg?.role);
-  const tabs = ent && ["initiative", "agent"].includes(ent.etype)
-    ? [...BASE_TABS.slice(0, 6), "Roadmap", ...BASE_TABS.slice(6)] : BASE_TABS;
+  const tabs = (() => {
+    if (!ent) return BASE_TABS;
+    const t = [...BASE_TABS];
+    const after = (anchor, name) => t.splice(t.indexOf(anchor) + 1, 0, name);
+    if (["agent", "workflow"].includes(ent.etype)) after("Implementation", "Sourcing & Risk");
+    if (["initiative", "agent"].includes(ent.etype)) after(["agent", "workflow"].includes(ent.etype) ? "Sourcing & Risk" : "Implementation", "Roadmap");
+    return t;
+  })();
 
   const load = useCallback(() => {
     if (!selectedId) return;
@@ -49,7 +55,9 @@ export default function DetailDrawer() {
 
   const save = async () => {
     try {
-      const upd = await api.put(`/entities/${ent.id}`, { data: form, version: ent.version });
+      const data = { ...form };
+      NUMERIC_FIELDS.forEach((k) => { if (data[k] === "" || data[k] == null) return; const n = Number(data[k]); if (!Number.isNaN(n)) data[k] = n; });
+      const upd = await api.put(`/entities/${ent.id}`, { data, version: ent.version });
       setEnt({ ...upd, relationships: ent.relationships }); setEdit(false);
       toast.success("Saved. Live views now reflect this change.");
     } catch (e) {
@@ -90,6 +98,8 @@ export default function DetailDrawer() {
                     <div className="flex items-center gap-2 mt-2">
                       <StatusBadge status={ent.status} />
                       <PhasePill phase={ent.data.phase} />
+                      <SourcingBadge value={ent.data.sourcing} />
+                      <RiskDot level={ent.data.risk_level} label />
                       <span className="text-[11px] text-muted-foreground mono">v{ent.version}</span>
                     </div>
                   </div>
@@ -154,13 +164,19 @@ function TabBody({ tab, ent, form, setForm, edit, audit, reload, canWrite }) {
         <div key={k} className="space-y-1">
           <Label className="text-[11px] uppercase tracking-wide text-muted-foreground">{k.replace(/_/g, " ")}</Label>
           {edit ? (
-            (typeof d[k] === "string" && d[k]?.length > 40) || ["purpose", "rationale", "content", "business_problem", "proposed_workflow"].includes(k) ? (
+            SELECT_FIELDS[k] ? (
+              <select data-testid={`edit-${k}`} value={form[k] ?? ""} onChange={(e) => setForm({ ...form, [k]: e.target.value })}
+                className="h-9 w-full rounded-md border border-input bg-white px-3 text-sm">
+                <option value="">—</option>
+                {SELECT_FIELDS[k].map((o) => <option key={o} value={o}>{optionLabel(k, o)}</option>)}
+              </select>
+            ) : (typeof d[k] === "string" && d[k]?.length > 40) || ["purpose", "rationale", "content", "business_problem", "proposed_workflow", "cost_notes", "risk_notes", "required_controls"].includes(k) ? (
               <Textarea data-testid={`edit-${k}`} value={form[k] ?? ""} onChange={(e) => setForm({ ...form, [k]: e.target.value })} />
             ) : (
-              <Input data-testid={`edit-${k}`} value={form[k] ?? ""} onChange={(e) => setForm({ ...form, [k]: e.target.value })} />
+              <Input data-testid={`edit-${k}`} type={NUMERIC_FIELDS.includes(k) ? "number" : "text"} value={form[k] ?? ""} onChange={(e) => setForm({ ...form, [k]: e.target.value })} />
             )
           ) : (
-            <div className="text-sm text-foreground/90">{fmt(d[k])}</div>
+            <div className="text-sm text-foreground/90">{SELECT_FIELDS[k] && d[k] ? optionLabel(k, d[k]) : fmt(d[k])}</div>
           )}
         </div>
       ))}
@@ -169,7 +185,8 @@ function TabBody({ tab, ent, form, setForm, edit, audit, reload, canWrite }) {
 
   if (tab === "Overview") {
     const keys = Object.keys(d).filter((k) => !HIDE_KEYS.includes(k) &&
-      !["allowed_actions", "prohibited_actions", "human_owner", "operational_owner", "approval_requirements", "escalation"].includes(k));
+      !["allowed_actions", "prohibited_actions", "human_owner", "operational_owner", "approval_requirements", "escalation"].includes(k) &&
+      !SOURCING_RISK_KEYS.includes(k));
     return (
       <div className="space-y-5">
         <EditableFields keys={keys.length ? keys : ["description"]} />
@@ -231,6 +248,27 @@ function TabBody({ tab, ent, form, setForm, edit, audit, reload, canWrite }) {
   }
   if (tab === "Implementation")
     return <EditableFields keys={["implementation_status", "status", "trigger", "inputs", "outputs", "deliverables", "start_date", "target_date", "budget", "currency"]} />;
+  if (tab === "Sourcing & Risk")
+    return (
+      <div className="space-y-6" data-testid="sourcing-risk-tab">
+        <section>
+          <div className="flex items-center justify-between mb-2">
+            <div className="text-xs uppercase tracking-wide text-muted-foreground">Sourcing decision</div>
+            <div className="flex items-center gap-2"><SourcingBadge value={d.sourcing} />{d.cost_estimate != null && d.cost_estimate !== "" && <span className="text-xs text-gray-600 mono">{d.currency || "USD"} {Number(d.cost_estimate).toLocaleString()} {COST_PERIODS[d.cost_period] || ""}</span>}</div>
+          </div>
+          <p className="text-[11px] text-muted-foreground mb-3">Buy a vendor product, build it in-house, or run a hybrid. Record the vendor or platform and what it costs so the roadmap carries real numbers.</p>
+          <EditableFields keys={["sourcing", "vendor", "cost_estimate", "cost_period", "currency", "cost_notes"]} />
+        </section>
+        <section>
+          <div className="flex items-center justify-between mb-2">
+            <div className="text-xs uppercase tracking-wide text-muted-foreground">Risk overlay</div>
+            <RiskDot level={d.risk_level} label />
+          </div>
+          <p className="text-[11px] text-muted-foreground mb-3">Risk, compliance and control notes live on the workflow, not in a separate exercise. Flags are illustrative, not legal advice.</p>
+          <EditableFields keys={["risk_level", "risk_category", "data_sensitivity", "regulatory_flags", "required_controls", "risk_notes"]} />
+        </section>
+      </div>
+    );
   if (tab === "Adoption") {
     const a = rels.filter((r) => r.to_type === "adoption_assignment" || r.from_type === "adoption_assignment");
     return a.length ? a.map((r) => {
@@ -282,6 +320,14 @@ function TabBody({ tab, ent, form, setForm, edit, audit, reload, canWrite }) {
       </div>
     );
   return null;
+}
+
+function optionLabel(k, o) {
+  if (k === "sourcing") return SOURCING[o]?.label || o;
+  if (k === "cost_period") return COST_PERIODS[o] || o;
+  if (k === "risk_level") return RISK_LEVELS[o]?.label || o;
+  if (k === "data_sensitivity") return DATA_SENSITIVITY[o] || o;
+  return String(o).replace(/_/g, " ");
 }
 
 function AiAssist({ ent }) {

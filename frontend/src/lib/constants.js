@@ -113,3 +113,32 @@ export const FUNCTION_BRANCHES = [
   { key: "finance", label: "Finance", color: FAMILY.finance },
   { key: "hr", label: "Human Resources", color: FAMILY.people },
 ];
+
+// ---- Sourcing decision and risk overlay (per agent / workflow) ------------------------------
+// Mirrors the "buy, build or hybrid · vendor cost · risk and compliance notes" payload a buyer
+// expects on every workflow. Stored in entity.data; no backend schema change (entity engine is schemaless).
+export const SOURCING = {
+  buy: { label: "Buy", hint: "Licensed vendor product; configure, do not code" },
+  build: { label: "Build", hint: "Custom, in-house; owns the model/workflow code" },
+  hybrid: { label: "Hybrid", hint: "Vendor platform plus custom workflow or data layer" },
+};
+export const COST_PERIODS = { monthly: "per month", one_off: "one-off", per_use: "per use / per seat" };
+export const RISK_LEVELS = {
+  low: { label: "Low", color: "#9ca3af" },
+  medium: { label: "Medium", color: "#f59e0b" },
+  high: { label: "High", color: "#dc2626" },
+};
+export const RISK_CATEGORIES = ["privacy", "security", "accuracy", "bias", "human_agency", "operational", "financial", "legal"];
+export const DATA_SENSITIVITY = { public: "Public", internal: "Internal", confidential: "Confidential", personal_data: "Personal data" };
+export const REGULATORY_FLAGS = ["eu_ai_act", "gdpr", "soc2", "hipaa", "pci", "industry"];
+// Keys the detail drawer renders as a select instead of free text
+export const SELECT_FIELDS = {
+  sourcing: Object.keys(SOURCING),
+  cost_period: Object.keys(COST_PERIODS),
+  risk_level: Object.keys(RISK_LEVELS),
+  risk_category: RISK_CATEGORIES,
+  data_sensitivity: Object.keys(DATA_SENSITIVITY),
+};
+export const NUMERIC_FIELDS = ["cost_estimate", "budget", "baseline", "target", "candidate_phase"];
+export const SOURCING_RISK_KEYS = ["sourcing", "vendor", "cost_estimate", "cost_period", "currency", "cost_notes",
+  "risk_level", "risk_category", "data_sensitivity", "regulatory_flags", "required_controls", "risk_notes"];

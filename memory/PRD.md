@@ -68,6 +68,16 @@ current vs target; evidence+approver phase gates; phase ≠ deployment status; n
 companies; tenant/company API enforcement; aggregation no-leak; unknown stays unknown; learning ≠
 operational readiness; labeled AI + demo data; persistence; optimistic concurrency.
 
+## Implemented (2026-10-12) — sourcing decision and risk overlay
+- Every `agent` and `workflow` carries a sourcing decision (`sourcing`: buy | build | hybrid, `vendor`,
+  `cost_estimate`, `cost_period`, `currency`, `cost_notes`) and a risk overlay (`risk_level`,
+  `risk_category`, `data_sensitivity`, `regulatory_flags`, `required_controls`, `risk_notes`), all in
+  `entity.data` (no backend schema change). Vocabularies live in `frontend/src/lib/constants.js`.
+- UI: "Sourcing & Risk" tab in the detail drawer (selects for the enumerated fields, numeric coercion on
+  save), fields on the create dialog, a "Sourcing · Risk" column on the Agents & Workflows table, a
+  BUY/BUILD/HYBRID tag and a medium/high risk dot on board chips. Regulatory flags are illustrative,
+  not legal advice.
+
 ## Backlog / Next Stage (deferred per MVP scope)
 - P1: richer playbook editor; initiative workstreams per company; invitations/revocation UI;
   per-request membership caching (N+1); split server.py into routers.

@@ -1,8 +1,8 @@
 import { useEffect, useState, useCallback } from "react";
 import { useScope } from "@/context/ScopeContext";
 import { api, apiErr } from "@/lib/api";
-import { ETYPE } from "@/lib/constants";
-import { StatusBadge, PhasePill, DemoTag, Empty } from "@/components/shared";
+import { ETYPE, SELECT_FIELDS, SOURCING, COST_PERIODS, RISK_LEVELS, DATA_SENSITIVITY } from "@/lib/constants";
+import { StatusBadge, PhasePill, DemoTag, Empty, SourcingBadge, RiskDot } from "@/components/shared";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -14,8 +14,10 @@ import { toast } from "sonner";
 // Minimal create fields per etype
 const CREATE_FIELDS = {
   opportunity: [["name", "Name"], ["business_problem", "Business problem", "area"], ["intended_outcome", "Intended outcome", "area"], ["candidate_phase", "Candidate phase (1-3)", "num"], ["priority", "Priority"]],
-  agent: [["name", "Role-based name"], ["purpose", "Purpose", "area"], ["human_owner", "Human accountable owner"], ["allowed_actions", "Allowed actions", "area"], ["prohibited_actions", "Prohibited actions", "area"]],
-  workflow: [["name", "Name"], ["description", "Description", "area"]],
+  agent: [["name", "Role-based name"], ["purpose", "Purpose", "area"], ["human_owner", "Human accountable owner"], ["allowed_actions", "Allowed actions", "area"], ["prohibited_actions", "Prohibited actions", "area"],
+    ["sourcing", "Sourcing (buy / build / hybrid)", "select"], ["vendor", "Vendor or platform"], ["cost_estimate", "Cost estimate", "num"], ["cost_period", "Cost period", "select"], ["risk_level", "Risk level", "select"], ["data_sensitivity", "Data sensitivity", "select"]],
+  workflow: [["name", "Name"], ["description", "Description", "area"],
+    ["sourcing", "Sourcing (buy / build / hybrid)", "select"], ["vendor", "Vendor or platform"], ["cost_estimate", "Cost estimate", "num"], ["cost_period", "Cost period", "select"], ["risk_level", "Risk level", "select"]],
   system: [["name", "Name"], ["type", "Type"]],
   knowledge_source: [["name", "Name"], ["owner", "Owner"], ["freshness_rule", "Freshness rule"]],
   playbook: [["name", "Name"], ["business_problem", "Business problem", "area"], ["proposed_workflow", "Proposed workflow", "area"]],
@@ -85,6 +87,7 @@ export default function EntityTable({ etypes, title }) {
                 <th className="text-left px-4 py-2.5 font-medium">Owner / Assignee</th>
                 <th className="text-left px-4 py-2.5 font-medium">Phase</th>
                 <th className="text-left px-4 py-2.5 font-medium">Status</th>
+                {["agent", "workflow"].includes(tab) && <th className="text-left px-4 py-2.5 font-medium">Sourcing · Risk</th>}
                 <th className="text-left px-4 py-2.5 font-medium">Reviewed</th>
               </tr>
             </thead>
@@ -103,6 +106,16 @@ export default function EntityTable({ etypes, title }) {
                     </td>
                     <td className="px-4 py-3"><PhasePill phase={r.data.phase} /></td>
                     <td className="px-4 py-3"><StatusBadge status={r.status} /></td>
+                    {["agent", "workflow"].includes(tab) && (
+                      <td className="px-4 py-3">
+                        <span className="flex items-center gap-2">
+                          <SourcingBadge value={r.data.sourcing} />
+                          {r.data.vendor && <span className="text-xs text-gray-600 truncate max-w-[140px]">{r.data.vendor}</span>}
+                          <RiskDot level={r.data.risk_level} />
+                          {!r.data.sourcing && !r.data.risk_level && <span className="text-xs text-muted-foreground">—</span>}
+                        </span>
+                      </td>
+                    )}
                     <td className="px-4 py-3 text-xs text-muted-foreground">
                       {r.last_reviewed_at ? new Date(r.last_reviewed_at).toLocaleDateString() : <span className="text-amber-600">never</span>}
                     </td>
@@ -145,7 +158,13 @@ function CreateDialog({ open, setOpen, etype, orgId, onDone }) {
           {fields.map(([k, label, type]) => (
             <div key={k} className="space-y-1.5">
               <Label>{label}</Label>
-              {type === "area" ? (
+              {type === "select" ? (
+                <select data-testid={`field-${k}`} value={data[k] || ""} onChange={(e) => setData({ ...data, [k]: e.target.value })}
+                  className="h-9 w-full rounded-md border border-input bg-white px-3 text-sm">
+                  <option value="">—</option>
+                  {(SELECT_FIELDS[k] || []).map((o) => <option key={o} value={o}>{optLabel(k, o)}</option>)}
+                </select>
+              ) : type === "area" ? (
                 <Textarea data-testid={`field-${k}`} value={data[k] || ""} onChange={(e) => setData({ ...data, [k]: e.target.value })} />
               ) : (
                 <Input data-testid={`field-${k}`} type={type === "num" ? "number" : "text"}
@@ -161,4 +180,12 @@ function CreateDialog({ open, setOpen, etype, orgId, onDone }) {
       </DialogContent>
     </Dialog>
   );
+}
+
+function optLabel(k, o) {
+  if (k === "sourcing") return SOURCING[o]?.label || o;
+  if (k === "cost_period") return COST_PERIODS[o] || o;
+  if (k === "risk_level") return RISK_LEVELS[o]?.label || o;
+  if (k === "data_sensitivity") return DATA_SENSITIVITY[o] || o;
+  return String(o).replace(/_/g, " ");
 }

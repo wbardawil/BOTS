@@ -1,5 +1,5 @@
 import { cn } from "@/lib/utils";
-import { STATUS_COLORS, PHASE_META } from "@/lib/constants";
+import { STATUS_COLORS, PHASE_META, SOURCING, RISK_LEVELS } from "@/lib/constants";
 
 export function StatusBadge({ status }) {
   if (!status) return null;
@@ -46,5 +46,28 @@ export function Empty({ icon: Icon, title, hint }) {
       <p className="font-medium text-foreground/80">{title}</p>
       {hint && <p className="text-sm mt-1 max-w-sm">{hint}</p>}
     </div>
+  );
+}
+
+// Sourcing decision: neutral outlined pill (BUY / BUILD / HYBRID). Hue is reserved for function families.
+export function SourcingBadge({ value, compact }) {
+  const m = value && SOURCING[value];
+  if (!m) return null;
+  return (
+    <span title={m.hint} data-testid={`sourcing-${value}`}
+      className={`inline-flex items-center rounded border border-gray-300 bg-white text-gray-700 font-semibold uppercase tracking-wide mono ${compact ? "px-1 text-[8px] leading-[12px]" : "px-1.5 py-0.5 text-[10px]"}`}>
+      {m.label}
+    </span>
+  );
+}
+
+// Risk overlay level: a dot (gray / amber / red). Low risk stays visually quiet.
+export function RiskDot({ level, label }) {
+  const m = level && RISK_LEVELS[level];
+  if (!m) return null;
+  return (
+    <span title={`Risk: ${m.label}`} data-testid={`risk-${level}`} className="inline-flex items-center gap-1 text-[10px] text-gray-600">
+      <span className="h-2 w-2 rounded-full shrink-0" style={{ background: m.color }} />{label && m.label}
+    </span>
   );
 }

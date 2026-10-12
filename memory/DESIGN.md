@@ -79,6 +79,9 @@ Radius: cards 10px, chips 6px, pills 999px. Spacing base 4px.
   family hue as border; governance row dashed slate.
 - **Section** on the board: white, 1px `#e5e7eb`, 12px radius, 11px uppercase
   tracking-widest gray label at top-left (e.g. `AI AGENT ORG CHART`).
+- **Sourcing badge**: outlined neutral pill, mono uppercase `BUY` / `BUILD` / `HYBRID`, 1px `#d1d5db`
+  border, never a hue. **Risk dot**: 8px circle, gray `#9ca3af` low, amber `#f59e0b` medium, red
+  `#dc2626` high; on board chips only medium and high are drawn, low stays quiet.
 - **App chrome**: white header with hairline bottom border, black square logo
   mark, nav items 13px; active nav = `#f3f4f6` background + black text.
   Toggles are segmented controls: black active segment, white text.

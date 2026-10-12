@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback, useRef, useMemo } from "react";
 import { useScope } from "@/context/ScopeContext";
 import { api, apiErr } from "@/lib/api";
-import { CANON_AREAS, FUNCTION_BRANCHES, PHASES, INK, LINE, MUTED, tint } from "@/lib/constants";
+import { CANON_AREAS, FUNCTION_BRANCHES, PHASES, INK, LINE, MUTED, tint, SOURCING, RISK_LEVELS } from "@/lib/constants";
 import { Maximize2, Plus, Minus, Crosshair, Info, Move, Save, RotateCcw, GripVertical, User, Bot, Database } from "lucide-react";
 import { toast } from "sonner";
 
@@ -141,6 +141,8 @@ export default function FrameworkCanvas() {
       {!e.data.human_owner && !e.data.owner && ["agent", "process"].includes(e.etype) && <span className="text-amber-500 shrink-0" title="no accountable owner">⚠</span>}
       {e.data.adoption_items?.some((a) => a.state !== "accepted") && <span className="text-blue-500 shrink-0" title="adoption incomplete">◷</span>}
       <span className="truncate">{e.data.name}</span>
+      {e.data.sourcing && SOURCING[e.data.sourcing] && <span className="ml-auto mono text-[8px] uppercase tracking-wide text-gray-400 shrink-0" title={SOURCING[e.data.sourcing].hint}>{SOURCING[e.data.sourcing].label}</span>}
+      {["medium", "high"].includes(e.data.risk_level) && <span className="h-1.5 w-1.5 rounded-full shrink-0" style={{ background: RISK_LEVELS[e.data.risk_level].color }} title={`Risk: ${e.data.risk_level}`} />}
     </button>
   ) : null;
 
