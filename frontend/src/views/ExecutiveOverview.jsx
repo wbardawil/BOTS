@@ -1,7 +1,8 @@
 import { useEffect, useState, useCallback } from "react";
 import { useScope } from "@/context/ScopeContext";
 import { api, apiErr } from "@/lib/api";
-import { StatusBadge, Empty } from "@/components/shared";
+import { StatusBadge, Empty, SourcingBadge } from "@/components/shared";
+import { PHASE_META, SOURCING } from "@/lib/constants";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
@@ -27,6 +28,8 @@ export default function ExecutiveOverview() {
 
   const agents = all.filter((e) => e.etype === "agent");
   const inits = all.filter((e) => e.etype === "initiative");
+  const costed = all.filter((e) => ["agent", "workflow"].includes(e.etype));
+  const cost = costRollup(costed);
   const opps = all.filter((e) => e.etype === "opportunity");
   const unassigned = all.filter((e) => ["agent", "process", "opportunity", "initiative"].includes(e.etype) &&
     !(e.data.human_owner || e.data.owner));
@@ -93,11 +96,60 @@ export default function ExecutiveOverview() {
         </div>
       </div>
 
+      <div className="card-surface rounded-xl p-4 mt-4" data-testid="cost-rollup">
+        <div className="flex items-center justify-between flex-wrap gap-2 mb-3">
+          <div className="font-medium">Cost of the plan</div>
+          <div className="text-xs text-muted-foreground">{cost.costed} of {cost.total} agents and workflows costed · {cost.uncosted > 0 ? `${cost.uncosted} without a number yet` : "all costed"}</div>
+        </div>
+        <div className="grid gap-3 md:grid-cols-4">
+          <Stat label="Monthly run-rate" value={money(cost.monthly)} sub="buy + hybrid + per-use, per month" />
+          <Stat label="One-off build" value={money(cost.oneOff)} sub="custom builds and setup" />
+          <Stat label="Annualised" value={money(cost.monthly * 12 + cost.oneOff)} sub="12 × monthly + one-off" />
+          <div className="card-surface rounded-xl p-4">
+            <div className="text-sm text-foreground/80 mb-2">By sourcing</div>
+            <div className="space-y-1">
+              {Object.keys(SOURCING).map((k) => (
+                <div key={k} className="flex items-center justify-between text-xs"><SourcingBadge value={k} /><span className="text-muted-foreground">{cost.bySourcing[k] || 0}</span></div>
+              ))}
+            </div>
+          </div>
+        </div>
+        <table className="w-full text-sm mt-4">
+          <thead className="text-xs uppercase text-muted-foreground"><tr><th className="text-left py-1.5">Phase</th><th className="text-right py-1.5">Items</th><th className="text-right py-1.5">Monthly</th><th className="text-right py-1.5">One-off</th><th className="text-right py-1.5">Uncosted</th></tr></thead>
+          <tbody>
+            {[1, 2, 3].map((p) => (
+              <tr key={p} className="border-t border-border" data-testid={`cost-phase-${p}`}>
+                <td className="py-1.5" style={{ color: PHASE_META[p].hex }}>{PHASE_META[p].label}</td>
+                <td className="py-1.5 text-right">{cost.byPhase[p].n}</td>
+                <td className="py-1.5 text-right mono">{money(cost.byPhase[p].monthly)}</td>
+                <td className="py-1.5 text-right mono">{money(cost.byPhase[p].oneOff)}</td>
+                <td className="py-1.5 text-right text-muted-foreground">{cost.byPhase[p].uncosted || "—"}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        <p className="text-[11px] text-muted-foreground mt-2">Estimates entered on each record's Sourcing & Risk tab. Per-use costs are counted as monthly. Missing values stay missing, never zero.</p>
+      </div>
+
       {pubOpen && <PublishDialog orgId={orgId} open={pubOpen} setOpen={setPubOpen} onDone={load} />}
     </div>
   );
 }
 
+function costRollup(items) {
+  const r = { total: items.length, costed: 0, uncosted: 0, monthly: 0, oneOff: 0, bySourcing: {},
+    byPhase: { 1: { n: 0, monthly: 0, oneOff: 0, uncosted: 0 }, 2: { n: 0, monthly: 0, oneOff: 0, uncosted: 0 }, 3: { n: 0, monthly: 0, oneOff: 0, uncosted: 0 } } };
+  items.forEach((e) => {
+    const d = e.data || {}; const ph = r.byPhase[d.phase] ? d.phase : 1; const bp = r.byPhase[ph]; bp.n++;
+    if (d.sourcing) r.bySourcing[d.sourcing] = (r.bySourcing[d.sourcing] || 0) + 1;
+    const v = Number(d.cost_estimate);
+    if (d.cost_estimate === "" || d.cost_estimate == null || Number.isNaN(v)) { r.uncosted++; bp.uncosted++; return; }
+    r.costed++;
+    if (d.cost_period === "one_off") { r.oneOff += v; bp.oneOff += v; } else { r.monthly += v; bp.monthly += v; }
+  });
+  return r;
+}
+function money(n) { return n ? `USD ${Math.round(n).toLocaleString()}` : "—"; }
 function Stat({ label, value, sub }) {
   return (
     <div className="card-surface rounded-xl p-4">
