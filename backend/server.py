@@ -25,6 +25,7 @@ import fields as field_rules
 from stages import DEFAULT_STAGES, STAGES, PIPELINE_ETYPES, get_org_stages, _stage_maps, _owner_of, _blocked_reason
 from auditlog import audit
 from routes_engagement import engagement_router
+from routes_feasibility import feasibility_router
 import storage
 from email_util import send_email
 
@@ -179,6 +180,10 @@ async def update_entity(eid: str, body: EntityUpdate, user: dict = Depends(get_c
     if body.version != e["version"]:
         raise HTTPException(409, "Record changed since you loaded it. Reload and retry.")
     if body.data is not None:
+        stored = e.get("data") or {}
+        for k in field_rules.PROTECTED_KEYS:  # a full-form save echoes server-only keys unchanged: ignore those, reject edits
+            if k in body.data and body.data[k] == stored.get(k):
+                body.data.pop(k)
         problems = field_rules.validate_data(e["etype"], body.data)
         if problems:
             raise HTTPException(400, "; ".join(problems))
@@ -1199,6 +1204,7 @@ async def framework_meta(user: dict = Depends(get_current_user)):
 app.include_router(auth_router)
 app.include_router(ai_router)
 app.include_router(engagement_router)
+app.include_router(feasibility_router)
 app.include_router(api)
 
 app.add_middleware(

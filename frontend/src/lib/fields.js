@@ -36,6 +36,9 @@ export const VOCAB = {
   data_sensitivity: Object.entries(DATA_SENSITIVITY).map(([k, v]) => o(k, { public: "Pública", internal: "Interna", confidential: "Confidencial", personal_data: "Datos personales" }[k], v)),
 };
 
+// Keys only the server writes (mirror of backend/fields.py PROTECTED_KEYS); a form save must never send them.
+export const PROTECTED_KEYS = ["feasibility", "feasibility_class", "feasibility_draft_class", "verified_integration", "last_probe"];
+
 // row: { key, es, en, type, options?, section, create?, csv?, required?, readonly? }
 // type: text | textarea | number | select | bool | date | readonly | json
 const f = (key, es, en, type = "text", extra = {}) => ({ key, es, en, type, section: "overview", csv: true, ...extra });

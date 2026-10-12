@@ -1,7 +1,7 @@
 import {
   Target, Layers, GitBranch, Workflow, Bot, Database, BookOpen, Rocket,
   ClipboardCheck, Users, LineChart, Gavel, Settings, Building2, Boxes, Cpu, FileText, LayoutDashboard,
-  LayoutGrid, Columns3, FolderSearch, ClipboardList,
+  LayoutGrid, Columns3, FolderSearch, ClipboardList, Scale,
 } from "lucide-react";
 
 // ---- Design tokens (mirror of memory/DESIGN.md §2) ----------------------------------------
@@ -48,6 +48,7 @@ export const MAIN_TABS = [
   { id: "inventory", label: "Inventory", icon: FolderSearch },
   { id: "tech", label: "Technology Inventory", icon: Cpu },
   { id: "intake", label: "Leadership Intake", icon: ClipboardList },
+  { id: "feasibility", label: "Feasibility Map", icon: Scale },
   { id: "pipeline", label: "Pipeline", icon: Columns3 },
   { id: "framework", label: "Framework Canvas", icon: LayoutDashboard },
   { id: "operating_map", label: "Operating Map", icon: GitBranch },

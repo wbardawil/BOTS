@@ -183,6 +183,28 @@ operational readiness; labeled AI + demo data; persistence; optimistic concurren
 - Tests: `test_flagship.py::TestAI` (status, suggest envelope, bad kind, viewer 403, short text 400, extraction
   shape + importability); skips unless the server has a provider (`BOTS_LLM_PROVIDER=fake` for CI).
 
+## Implemented (2026-10-12) — engagement engine M5: feasibility batch run, human review, board and matrix
+- `backend/routes_feasibility.py`: `POST /organizations/{id}/feasibility/run` queues a background job (ids
+  optional, `force` re-drafts) that classifies every intake item against the recorded inventory with the
+  provider's schema-constrained output (`feas-v1`: current_stack / configure / build / buy / not_tech,
+  confidence, rationale, systems_used validated against inventory names, what_to_do, prerequisites, risks,
+  effort, quick_win, suggested_phase, open_questions). Each draft is written with compare-and-set and bumps
+  the record version; failures are recorded per item and the batch continues. `GET .../feasibility/jobs[/{id}]`
+  for progress. `POST /entities/{id}/feasibility/review` (`accepted` | `overridden` + final.classification |
+  `rejected`, with the record version → 409 when stale) writes the final verdict, the flat `feasibility_class`
+  and the reviewer stamp. Rejecting clears the verdict and the draft class (the card leaves the board; the draft
+  stays on the record) and the next run drafts it again.
+- `pages/Feasibility.jsx` (nav "Feasibility Map"): board with Unclassified + five class columns; solid card =
+  verdict, dashed = AI draft; dragging a card into a class accepts the draft (same class) or overrides it,
+  dragging to Unclassified rejects; "Classify N pending" runs the job with live progress; matrix mode =
+  areas × classes (export target). Drawer Feasibility tab gained Accept / Set verdict (class + note) / Reject.
+- Fix: a drawer save echoed server-only keys (`feasibility`, probe results) and was rejected with 400 on any
+  classified record. The drawer now strips them (`fields.PROTECTED_KEYS`) and the server ignores unchanged
+  echoes while still rejecting edits.
+- Tests: `test_flagship.py::TestFeasibility` (viewer 403, run → drafts + version bump + job listing, re-run skip
+  and force, review 409, accept, override keeps draft detail, bad class 400, reject clears and re-queues,
+  full-form save tolerated / edit rejected).
+
 ## Backlog / Next Stage (deferred per MVP scope)
 - P1: richer playbook editor; initiative workstreams per company; invitations/revocation UI;
   per-request membership caching (N+1); split server.py into routers.

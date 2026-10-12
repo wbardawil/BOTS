@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback, useRef } from "react";
 import { useScope } from "@/context/ScopeContext";
 import client, { api, apiErr } from "@/lib/api";
 import { ETYPE, NUMERIC_FIELDS, COST_PERIODS, STAGES, BENEFIT_KEYS } from "@/lib/constants";
-import { fieldsFor, sectionKeys, hasSection, labelFor } from "@/lib/fields";
+import { fieldsFor, sectionKeys, hasSection, labelFor, VOCAB, PROTECTED_KEYS } from "@/lib/fields";
 import FieldGrid from "@/components/FieldGrid";
 import { StatusBadge, PhasePill, StagePill, DemoTag, AiTag, Field, SourcingBadge, RiskDot } from "@/components/shared";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
@@ -63,6 +63,7 @@ export default function DetailDrawer() {
   const save = async () => {
     try {
       const data = { ...form };
+      PROTECTED_KEYS.forEach((k) => delete data[k]); // server-only keys (feasibility, probe results) never travel back in a form save
       NUMERIC_FIELDS.forEach((k) => { if (data[k] === "" || data[k] == null) return; const n = Number(data[k]); if (!Number.isNaN(n)) data[k] = n; });
       const upd = await api.put(`/entities/${ent.id}`, { data, version: ent.version });
       setEnt({ ...upd, relationships: ent.relationships }); setEdit(false);
@@ -220,9 +221,10 @@ function TabBody({ tab, ent, form, setForm, edit, audit, reload, canWrite }) {
     ) : null;
     return (
       <div className="space-y-4" data-testid="feasibility-tab">
-        {!draft && !fin && <Muted>Not classified yet. Run the feasibility pass from the Feasibility map.</Muted>}
-        <Block title="Final verdict" c={fin} tag={fz.reviewed_by ? <span className="text-[11px] text-muted-foreground">{fz.review_action} by {fz.reviewed_by} · {fz.reviewed_at ? new Date(fz.reviewed_at).toLocaleDateString() : ""}</span> : null} />
+        {!draft && !fin && <Muted>Not classified yet. Run the AI pass from the Feasibility map, or set the verdict by hand below.</Muted>}
+        <Block title="Final verdict" c={fin} tag={fz.reviewed_by ? <span className="text-[11px] text-muted-foreground">{fz.review_action} by {fz.reviewed_by} · {fz.reviewed_at ? new Date(fz.reviewed_at).toLocaleDateString() : ""}{fz.review_note ? ` · “${fz.review_note}”` : ""}</span> : null} />
         <Block title="AI draft" c={draft?.content} tag={<AiTag />} />
+        {canWrite && <FeasibilityReview ent={ent} reload={reload} />}
       </div>
     );
   }
@@ -447,6 +449,47 @@ function PhaseDialog({ ent, open, setOpen, onDone }) {
 }
 
 const Muted = ({ children }) => <p className="text-sm text-muted-foreground">{children}</p>;
+
+/** Human decision on the feasibility draft: accept, override (keeps the draft's detail, changes the class) or reject. */
+function FeasibilityReview({ ent, reload }) {
+  const fz = ent.data.feasibility || {}; const draft = fz.draft?.content; const fin = fz.final;
+  const [mode, setMode] = useState(null);
+  const [cls, setCls] = useState(fin?.classification || draft?.classification || "configure");
+  const [note, setNote] = useState("");
+  const [busy, setBusy] = useState(false);
+  const call = async (body) => {
+    setBusy(true);
+    try {
+      await api.post(`/entities/${ent.id}/feasibility/review`, { ...body, version: ent.version });
+      toast.success(body.action === "rejected" ? "Verdict cleared" : "Verdict saved"); setMode(null); setNote(""); reload();
+    } catch (e) { toast.error(apiErr(e.response?.data?.detail)); if (e.response?.status === 409) reload(); }
+    finally { setBusy(false); }
+  };
+  return (
+    <section className="rounded-md border border-gray-200 p-3 space-y-2" data-testid="feas-review">
+      <div className="text-[11px] uppercase tracking-wide text-muted-foreground">Your decision</div>
+      {mode !== "override" ? (
+        <div className="flex flex-wrap gap-2">
+          {draft && !fin && <Button size="sm" data-testid="feas-accept" disabled={busy} onClick={() => call({ action: "accepted" })}><CheckCircle2 className="h-3.5 w-3.5 mr-1.5" /> Accept AI draft</Button>}
+          <Button size="sm" variant="outline" data-testid="feas-override" disabled={busy} onClick={() => setMode("override")}>{fin ? "Change verdict" : "Set verdict"}</Button>
+          {(fin || draft) && <Button size="sm" variant="ghost" data-testid="feas-reject" disabled={busy} onClick={() => call({ action: "rejected" })}>Reject · back to unclassified</Button>}
+        </div>
+      ) : (
+        <div className="space-y-2">
+          <select data-testid="feas-override-class" value={cls} onChange={(e) => setCls(e.target.value)} className="h-8 rounded-md border border-input bg-white px-2 text-xs">
+            {VOCAB.feasibility_class.map((o) => <option key={o.key} value={o.key}>{o.en}</option>)}
+          </select>
+          <Textarea data-testid="feas-override-note" value={note} onChange={(e) => setNote(e.target.value)} placeholder="Why (optional, shown next to the verdict)" rows={2} />
+          <div className="flex gap-2">
+            <Button size="sm" data-testid="feas-override-save" disabled={busy} onClick={() => call({ action: "overridden", final: { classification: cls }, note })}>Save verdict</Button>
+            <Button size="sm" variant="ghost" onClick={() => setMode(null)}>Cancel</Button>
+          </div>
+        </div>
+      )}
+      <p className="text-[11px] text-muted-foreground">Accepting copies the AI draft into the final verdict. Overriding keeps the draft's reasoning but sets your class. Rejecting clears the verdict and keeps the draft for reference.</p>
+    </section>
+  );
+}
 
 const ADOPT_STATES = ["assigned", "in progress", "submitted", "reviewed", "accepted"];
 

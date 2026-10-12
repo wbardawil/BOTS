@@ -265,3 +265,131 @@ class TestAI:
         rows = [{**it, "name": f"{it['name'][:60]} {RUN}"} for it in items[:2]]
         imp = _import(editor_h, "initiative", rows, source="transcript").json()
         assert imp["counts"]["created"] == len(rows), imp
+
+
+# ---- M5: feasibility batch run + human review ---------------------------------------------------
+import time
+
+CLASSES = ["current_stack", "configure", "build", "buy", "not_tech"]
+
+
+def _wait_job(h, job_id, timeout=90):
+    t0 = time.time()
+    while time.time() - t0 < timeout:
+        j = requests.get(f"{API}/organizations/{ORG}/feasibility/jobs/{job_id}", headers=h, timeout=T).json()
+        if j["status"] in ("done", "failed"):
+            return j
+        time.sleep(1)
+    raise AssertionError("job did not finish in time")
+
+
+def _get(h, eid):
+    r = requests.get(f"{API}/entities/{eid}", headers=h, timeout=T)
+    assert r.status_code == 200, r.text
+    return r.json()
+
+
+@pytest.fixture(scope="module")
+def feas_items(editor_h, ai_enabled):
+    rows = [
+        {"name": f"Comisiones en Excel {RUN}", "intake_kind": "slow_task", "area": "finance", "frequency": "monthly", "time_per_occurrence_hours": "32", "people_involved": "3",
+         "business_problem": "Commissions are rebuilt by hand in a spreadsheet from CRM exports."},
+        {"name": f"Portal de clientes {RUN}", "intake_kind": "initiative", "area": "customer", "business_problem": "Clients want to see order status without calling; needs a custom integration with the ERP."},
+        {"name": f"Nadie decide prioridades {RUN}", "intake_kind": "pain_point", "area": "strategy", "business_problem": "Priorities change weekly; it is a policy and decision-rights problem, not a tooling one."},
+    ]
+    d = _import(editor_h, "initiative", rows).json()
+    assert d["counts"]["created"] == 3, d
+    return d["created"]
+
+
+class TestFeasibility:
+    def test_run_requires_write(self, viewer_h, feas_items):
+        r = requests.post(f"{API}/organizations/{ORG}/feasibility/run", json={"ids": feas_items}, headers=viewer_h, timeout=T)
+        assert r.status_code == 403
+
+    def test_run_creates_drafts(self, editor_h, feas_items):
+        before = {eid: _get(editor_h, eid)["version"] for eid in feas_items}
+        r = requests.post(f"{API}/organizations/{ORG}/feasibility/run", json={"ids": feas_items}, headers=editor_h, timeout=T)
+        assert r.status_code == 200, r.text
+        d = r.json()
+        assert d["queued"] == 3 and d["job_id"]
+        job = _wait_job(editor_h, d["job_id"])
+        assert job["status"] == "done", job
+        assert job["ok"] == 3 and job["failed"] == 0, job
+        for eid in feas_items:
+            e = _get(editor_h, eid)
+            fz = e["data"]["feasibility"]
+            assert fz["draft"]["label"] == "AI_DRAFT" and fz["draft"]["accepted"] is False
+            assert fz["draft"]["content"]["classification"] in CLASSES
+            assert fz["draft"]["run_id"] == d["job_id"] and fz["draft"]["prompt_version"]
+            assert e["data"]["feasibility_draft_class"] == fz["draft"]["content"]["classification"]
+            assert "feasibility_class" not in e["data"] and not fz.get("final")
+            assert e["version"] == before[eid] + 1
+        jobs = requests.get(f"{API}/organizations/{ORG}/feasibility/jobs", headers=editor_h, timeout=T).json()
+        assert any(j["id"] == d["job_id"] for j in jobs)
+
+    def test_rerun_skips_unless_forced(self, editor_h, feas_items):
+        r = requests.post(f"{API}/organizations/{ORG}/feasibility/run", json={"ids": feas_items}, headers=editor_h, timeout=T).json()
+        assert r["job_id"] is None and r["skipped"] == 3
+        r = requests.post(f"{API}/organizations/{ORG}/feasibility/run", json={"ids": feas_items, "force": True}, headers=editor_h, timeout=T).json()
+        assert r["queued"] == 3
+        assert _wait_job(editor_h, r["job_id"])["ok"] == 3
+
+    def test_review_stale_version(self, editor_h, feas_items):
+        e = _get(editor_h, feas_items[0])
+        r = requests.post(f"{API}/entities/{e['id']}/feasibility/review", json={"action": "accepted", "version": e["version"] - 1}, headers=editor_h, timeout=T)
+        assert r.status_code == 409
+
+    def test_review_requires_write(self, viewer_h, editor_h, feas_items):
+        e = _get(editor_h, feas_items[0])
+        r = requests.post(f"{API}/entities/{e['id']}/feasibility/review", json={"action": "accepted", "version": e["version"]}, headers=viewer_h, timeout=T)
+        assert r.status_code == 403
+
+    def test_accept(self, editor_h, feas_items):
+        e = _get(editor_h, feas_items[0])
+        r = requests.post(f"{API}/entities/{e['id']}/feasibility/review", json={"action": "accepted", "version": e["version"]}, headers=editor_h, timeout=T)
+        assert r.status_code == 200, r.text
+        u = r.json(); fz = u["data"]["feasibility"]
+        assert fz["final"] == fz["draft"]["content"] and fz["draft"]["accepted"] is True
+        assert fz["review_action"] == "accepted" and fz["reviewed_by"] and fz["reviewed_at"]
+        assert u["data"]["feasibility_class"] == fz["final"]["classification"]
+        assert u["version"] == e["version"] + 1
+
+    def test_override_keeps_draft_detail(self, editor_h, feas_items):
+        e = _get(editor_h, feas_items[1])
+        target = "buy" if e["data"]["feasibility_draft_class"] != "buy" else "build"
+        r = requests.post(f"{API}/entities/{e['id']}/feasibility/review", json={"action": "overridden", "version": e["version"], "final": {"classification": target}, "note": "vendor quote in hand"}, headers=editor_h, timeout=T)
+        assert r.status_code == 200, r.text
+        u = r.json(); fz = u["data"]["feasibility"]
+        assert fz["final"]["classification"] == target and u["data"]["feasibility_class"] == target
+        assert fz["final"]["rationale"] == fz["draft"]["content"]["rationale"]
+        assert fz["review_note"] == "vendor quote in hand" and fz["draft"]["accepted"] is False
+
+    def test_override_bad_class(self, editor_h, feas_items):
+        e = _get(editor_h, feas_items[1])
+        r = requests.post(f"{API}/entities/{e['id']}/feasibility/review", json={"action": "overridden", "version": e["version"], "final": {"classification": "magic"}}, headers=editor_h, timeout=T)
+        assert r.status_code == 400
+
+    def test_reject_clears_verdict(self, editor_h, feas_items):
+        e = _get(editor_h, feas_items[2])
+        r = requests.post(f"{API}/entities/{e['id']}/feasibility/review", json={"action": "rejected", "version": e["version"]}, headers=editor_h, timeout=T)
+        assert r.status_code == 200, r.text
+        u = r.json()
+        assert u["data"]["feasibility"]["final"] is None and "feasibility_class" not in u["data"]
+        assert "feasibility_draft_class" not in u["data"]  # leaves the board; draft kept on the record for reference
+        assert u["data"]["feasibility"]["draft"]["content"]["classification"] in CLASSES
+        # a rejected item is picked up again by the next (non-forced) run
+        r = requests.post(f"{API}/organizations/{ORG}/feasibility/run", json={"ids": [e["id"]]}, headers=editor_h, timeout=T).json()
+        assert r["queued"] == 1
+        assert _wait_job(editor_h, r["job_id"])["ok"] == 1
+        assert _get(editor_h, e["id"])["data"]["feasibility_draft_class"] in CLASSES
+
+    def test_form_save_echoing_protected_keys_is_tolerated(self, editor_h, feas_items):
+        e = _get(editor_h, feas_items[0])
+        data = {**e["data"], "owner": "Finance lead"}  # a drawer-style full save, server-only keys echoed unchanged
+        r = requests.put(f"{API}/entities/{e['id']}", json={"data": data, "version": e["version"]}, headers=editor_h, timeout=T)
+        assert r.status_code == 200, r.text
+        assert r.json()["data"]["feasibility_class"] == e["data"]["feasibility_class"]
+        bad = {**r.json()["data"], "feasibility_class": "buy"}
+        r2 = requests.put(f"{API}/entities/{e['id']}", json={"data": bad, "version": r.json()["version"]}, headers=editor_h, timeout=T)
+        assert r2.status_code == 400
