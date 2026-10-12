@@ -3,7 +3,7 @@ import { useScope } from "@/context/ScopeContext";
 import { api, apiErr } from "@/lib/api";
 import { ETYPE } from "@/lib/constants";
 import { StatusBadge, PhasePill, DemoTag, AiTag, Field } from "@/components/shared";
-import { Sheet, SheetContent } from "@/components/ui/sheet";
+import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -64,6 +64,7 @@ export default function DetailDrawer() {
   return (
     <Sheet open={!!selectedId} onOpenChange={(o) => !o && setSelectedId(null)}>
       <SheetContent className="w-full sm:max-w-xl p-0 flex flex-col gap-0" data-testid="detail-drawer">
+        <SheetTitle className="sr-only">Record detail</SheetTitle>
         {!ent ? <div className="p-6 text-muted-foreground">Loading…</div> : (
           <>
             <div className="p-5 border-b border-border">
