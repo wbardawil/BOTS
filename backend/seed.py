@@ -21,6 +21,9 @@ PHASES = [
 ]
 VALUE_CHAIN = ["Strategy & Planning", "Product / Service & Operations", "Marketing & Sales",
                "Delivery & Customer Success", "Feedback & Improvement"]
+# Canonical business-area keys in library order (used to group records on the framework canvas)
+CANON_KEYS = ["strategy", "product", "operations", "marketing", "sales", "customer",
+              "data", "tech", "finance", "hr", "legal"]
 
 
 def now():
@@ -68,7 +71,7 @@ DEMO_USERS = [
 
 async def seed_demo(force=False):
     await seed_admin()
-    marker = await db.meta.find_one({"id": "demo_seed"})
+    marker = await db.meta.find_one({"id": "demo_seed_v2"})
     if marker and not force:
         return
     for c in ["workspaces", "organizations", "portfolios", "memberships", "entities",
@@ -135,7 +138,8 @@ async def seed_demo(force=False):
         cid = f"cap-nw-{i}"
         cap_ids[c] = cid
         entities.append(ent(cid, "capability", o, w,
-                            {"name": c, "current_state": "Manual, email-driven",
+                            {"name": c, "area": CANON_KEYS[i], "area_no": i + 1,
+                             "current_state": "Manual, email-driven",
                              "target_state": "AI co-piloted", "applicable": True,
                              "outcome_measure": "Cycle time"},
                             status="published", reviewed=(i % 3 != 0)))
@@ -195,14 +199,14 @@ async def seed_demo(force=False):
                          "escalation": "Head of Sales"},
                         status="published", phase=1))
     entities.append(ent("agent-nw-fcst", "agent", o, w,
-                        {"name": "Demand Forecast Agent", "purpose": "Draft demand forecasts",
+                        {"name": "Demand Forecast Agent", "area": "operations", "purpose": "Draft demand forecasts",
                          "human_owner": "Jordan Blake", "status": "Under Assessment",
                          "implementation_status": "candidate",
                          "allowed_actions": "Produce forecast drafts",
                          "prohibited_actions": "Change inventory"},
                         status="published", phase=2))
     entities.append(ent("agent-nw-report", "agent", o, w,
-                        {"name": "Compliance Report Agent", "purpose": "Compile compliance reports",
+                        {"name": "Compliance Report Agent", "area": "legal", "purpose": "Compile compliance reports",
                          "human_owner": None,  # missing owner -> cannot advance
                          "status": "Candidate", "implementation_status": "candidate"},
                         status="draft", phase=1, reviewed=False))
@@ -297,6 +301,24 @@ async def seed_demo(force=False):
     for a, at, b, bt, rt in R:
         rels.append(rel(a, at, b, bt, rt, o))
 
+    # Enrich each functional branch so the top band & reference model reach reference-like density
+    BRANCHES = [("customer", "Customer & Admin", 1), ("marketing", "Marketing & Growth", 2),
+                ("product", "Product / Service", 1), ("operations", "Operations & Supply Chain", 2),
+                ("data", "Data & Analytics", 3), ("tech", "Tech, AI & Automations", 1),
+                ("finance", "Finance", 2), ("hr", "Human Resources", 1)]
+    for bk, blabel, ph in BRANCHES:
+        capid = f"cap-nw-{CANON_KEYS.index(bk)}"
+        lead, brain, ag, op, ini = f"role-nw-{bk}-lead", f"know-nw-{bk}", f"agent-nw-{bk}", f"opp-nw-{bk}", f"init-nw-{bk}"
+        entities.append(ent(lead, "role", o, w, {"name": f"Head of {blabel}", "area": bk, "type": "human_head", "accountable_owner": "Named Owner"}, status="published"))
+        entities.append(ent(brain, "knowledge_source", o, w, {"name": f"{blabel} Knowledge Base", "area": bk, "owner": "Named Owner", "freshness_rule": "Review quarterly"}, status="published"))
+        entities.append(ent(ag, "agent", o, w, {"name": f"{blabel} Co-Pilot", "area": bk, "purpose": f"Support {blabel} workflows with human review", "human_owner": "Named Owner", "status": "Pilot" if ph == 1 else "Under Assessment", "implementation_status": "pilot" if ph == 1 else "candidate", "allowed_actions": "Draft & suggest", "prohibited_actions": "Act without approval"}, status="published", phase=ph))
+        entities.append(ent(op, "opportunity", o, w, {"name": f"Automate {blabel} task", "area": bk, "candidate_phase": ph, "priority": "medium", "owner": "Named Owner"}, status="published"))
+        entities.append(ent(ini, "initiative", o, w, {"name": f"{blabel} AI Rollout", "area": bk, "phase": ph, "status": "in_progress", "owner": "Named Owner", "budget": 10000, "currency": "USD"}, status="published", phase=ph))
+        rels.append(rel(capid, "capability", ag, "agent", "supports", o))
+        rels.append(rel(ag, "agent", lead, "role", "reports_to", o))
+        rels.append(rel(ag, "agent", brain, "knowledge_source", "depends_on", o))
+        rels.append(rel(capid, "capability", op, "opportunity", "supports", o))
+
     # views for Northwind
     def view(vid, kind, name, placements):
         views.append({"id": vid, "organization_id": o, "workspace_id": w, "kind": kind,
@@ -316,18 +338,19 @@ async def seed_demo(force=False):
     def mini(org_id, ws_id, prefix, agent_phases, currency="USD", with_init=True):
         for i, c in enumerate(CAPABILITY_LIBRARY[:5]):
             entities.append(ent(f"cap-{prefix}-{i}", "capability", org_id, ws_id,
-                                {"name": c, "current_state": "Manual", "target_state": "Co-piloted",
+                                {"name": c, "area": CANON_KEYS[i], "area_no": i + 1,
+                                 "current_state": "Manual", "target_state": "Co-piloted",
                                  "applicable": True}, status="published"))
         for i, ph in enumerate(agent_phases):
             entities.append(ent(f"agent-{prefix}-{i}", "agent", org_id, ws_id,
-                                {"name": f"{prefix.title()} Agent {i+1}",
+                                {"name": f"{prefix.title()} Agent {i+1}", "area": CANON_KEYS[i],
                                  "purpose": "Support a bounded workflow",
                                  "human_owner": "Named Owner" if i == 0 else None,
                                  "status": "Pilot" if ph == 1 else "Candidate",
                                  "implementation_status": "pilot" if ph == 1 else "candidate"},
                                 status="published", phase=ph))
             entities.append(ent(f"opp-{prefix}-{i}", "opportunity", org_id, ws_id,
-                                {"name": f"Opportunity {i+1}", "priority": "medium",
+                                {"name": f"Opportunity {i+1}", "area": CANON_KEYS[i], "priority": "medium",
                                  "candidate_phase": ph}, status="published"))
         if with_init:
             entities.append(ent(f"init-{prefix}-1", "initiative", org_id, ws_id,
@@ -387,5 +410,5 @@ async def seed_demo(force=False):
         "payload": {"entities": nw_entities, "relationships": nw_rels, "views": nw_views},
         "is_demo": True})
 
-    await db.meta.update_one({"id": "demo_seed"}, {"$set": {"id": "demo_seed", "at": now()}},
+    await db.meta.update_one({"id": "demo_seed_v2"}, {"$set": {"id": "demo_seed_v2", "at": now()}},
                              upsert=True)

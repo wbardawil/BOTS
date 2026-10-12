@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import DetailDrawer from "@/components/DetailDrawer";
 import EntityTable from "@/components/EntityTable";
+import FrameworkCanvas from "@/views/FrameworkCanvas";
 import OperatingMap from "@/views/OperatingMap";
 import CapabilityModel from "@/views/CapabilityModel";
 import ValueChain from "@/views/ValueChain";
@@ -25,12 +26,13 @@ export default function Shell() {
   const scope = useScope();
   const { workspaces, orgs, currentOrg, currentWs, wsId, setWsId, orgId, setOrgId,
     state, setState, version, setVersion, search, setSearch } = scope;
-  const [active, setActive] = useState("operating_map");
+  const [active, setActive] = useState("framework");
 
   const sec = SECONDARY_NAV.find((s) => s.id === active);
   const mainTab = MAIN_TABS.find((t) => t.id === active);
 
   const renderContent = () => {
+    if (active === "framework") return <FrameworkCanvas />;
     if (active === "operating_map") return <OperatingMap />;
     if (active === "capability_model") return <CapabilityModel />;
     if (active === "value_chain") return <ValueChain />;

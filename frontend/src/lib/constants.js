@@ -1,6 +1,6 @@
 import {
   Target, Layers, GitBranch, Workflow, Bot, Database, BookOpen, Rocket,
-  ClipboardCheck, Users, LineChart, Gavel, Settings, Building2, Boxes, Cpu, FileText,
+  ClipboardCheck, Users, LineChart, Gavel, Settings, Building2, Boxes, Cpu, FileText, LayoutDashboard,
 } from "lucide-react";
 
 export const ETYPE = {
@@ -23,6 +23,7 @@ export const ETYPE = {
 };
 
 export const MAIN_TABS = [
+  { id: "framework", label: "Framework Canvas", icon: LayoutDashboard },
   { id: "operating_map", label: "Operating Map", icon: GitBranch },
   { id: "capability_model", label: "Capability Model", icon: Layers },
   { id: "value_chain", label: "Value Chain", icon: Workflow },
@@ -56,3 +57,31 @@ export const PHASE_META = {
   2: { label: "Phase 2 · AI Brains", color: "199 89% 55%" },
   3: { label: "Phase 3 · Autonomous", color: "262 72% 66%" },
 };
+
+// 11 canonical business areas (fixed id, number and order) for the living framework canvas
+export const CANON_AREAS = [
+  { no: 1, key: "strategy", label: "Strategy & Leadership", color: "#6366f1" },
+  { no: 2, key: "product", label: "Product / Service Management", color: "#818cf8" },
+  { no: 3, key: "operations", label: "Operations & Supply Chain", color: "#06b6d4" },
+  { no: 4, key: "marketing", label: "Marketing & Growth", color: "#0ea5e9" },
+  { no: 5, key: "sales", label: "Sales", color: "#14b8a6" },
+  { no: 6, key: "customer", label: "Customer & Admin", color: "#10b981" },
+  { no: 7, key: "data", label: "Data & Analytics", color: "#f59e0b" },
+  { no: 8, key: "tech", label: "Tech, AI & Automations", color: "#8b5cf6" },
+  { no: 9, key: "finance", label: "Finance", color: "#ec4899" },
+  { no: 10, key: "hr", label: "Human Resources", color: "#65a30d" },
+  { no: 11, key: "legal", label: "Legal, Risk & Compliance", color: "#ef4444" },
+];
+
+// 9 functional branches of the operating/agent org chart (reference top band order)
+export const FUNCTION_BRANCHES = [
+  { key: "sales", label: "Sales", color: "#14b8a6" },
+  { key: "customer", label: "Customer & Admin", color: "#10b981" },
+  { key: "marketing", label: "Marketing & Growth", color: "#0ea5e9" },
+  { key: "product", label: "Product / Service", color: "#818cf8" },
+  { key: "operations", label: "Operations & Supply Chain", color: "#06b6d4" },
+  { key: "data", label: "Data & Analytics", color: "#f59e0b" },
+  { key: "tech", label: "Tech, AI & Automations", color: "#8b5cf6" },
+  { key: "finance", label: "Finance", color: "#ec4899" },
+  { key: "hr", label: "Human Resources", color: "#65a30d" },
+];
