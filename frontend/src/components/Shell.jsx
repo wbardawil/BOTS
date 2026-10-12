@@ -10,11 +10,8 @@ import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuLabel, DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
 import DetailDrawer from "@/components/DetailDrawer";
-import EntityTable from "@/components/EntityTable";
 import FrameworkCanvas from "@/views/FrameworkCanvas";
 import OperatingMap from "@/views/OperatingMap";
-import CapabilityModel from "@/views/CapabilityModel";
-import ValueChain from "@/views/ValueChain";
 import Roadmap from "@/views/Roadmap";
 import ExecutiveOverview from "@/views/ExecutiveOverview";
 import Assessment from "@/pages/Assessment";
@@ -39,14 +36,11 @@ export default function Shell() {
     if (active === "pipeline") return <Pipeline />;
     if (active === "framework") return <FrameworkCanvas />;
     if (active === "operating_map") return <OperatingMap />;
-    if (active === "capability_model") return <CapabilityModel />;
-    if (active === "value_chain") return <ValueChain />;
     if (active === "roadmap") return <Roadmap />;
     if (active === "executive") return <ExecutiveOverview />;
     if (active === "assessment") return <Assessment />;
     if (active === "oversight") return <GroupOversight />;
     if (active === "settings") return <SettingsPage />;
-    if (sec?.etypes) return <EntityTable etypes={sec.etypes} title={sec.label} />;
     return null;
   };
 

@@ -1,14 +1,25 @@
 {
   "summary": "BOTS end-to-end test: 31/31 backend pytest cases passed (auth, structure, entity CRUD + optimistic concurrency, agent SSOT, relationships/impact, phase advancement gates, assessment unknown-exclusion, publish/snapshots/diff, tenant isolation for viewer/isolated, group oversight dedupe+restricted_count, admin-only export, AI status + suggest). Frontend: login via demo button + Sign-in works for owner; shell renders header controls (workspace-switcher, scope-selector, state-toggle, version-toggle), full left nav (operating_map, capability_model, value_chain, roadmap, executive, opportunity, agent, assessment, oversight, settings), Operating Map canvas renders 8 nodes; clicking node opens DetailDrawer with 10 tabs; navigating to every view works; Edit button present (Save appears only in edit-mode as expected).",
-  "backend_issues": {"critical": [], "minor": []},
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
   "frontend_issues": {
     "ui_bugs": [],
     "integration_issues": [],
     "design_issues": [
-      {"screen": "DetailDrawer / shadcn Dialog", "issues": ["Radix DialogContent missing DialogTitle — a11y console warning (screen reader). Wrap title with VisuallyHidden or add DialogTitle."]}
+      {
+        "screen": "DetailDrawer / shadcn Dialog",
+        "issues": [
+          "Radix DialogContent missing DialogTitle — a11y console warning (screen reader). Wrap title with VisuallyHidden or add DialogTitle."
+        ]
+      }
     ]
   },
-  "test_report_links": ["/app/backend/tests/backend_test.py", "/app/test_reports/pytest/pytest_results.xml"],
+  "test_report_links": [
+    "/app/backend/tests/backend_test.py",
+    "/app/test_reports/pytest/pytest_results.xml"
+  ],
   "action_items": [
     "(Optional, a11y) Add DialogTitle (or VisuallyHidden wrapper) inside shadcn DialogContent used by DetailDrawer to silence Radix a11y warning."
   ],
@@ -19,9 +30,14 @@
     "accessible_org_ids / org_role query memberships multiple times per request (N+1 for workspace-admin lookups). Caching per-request would help for list endpoints.",
     "CORS_ORIGINS='*' with allow_credentials=True is permitted by FastAPI but violates browser spec — browsers will ignore credentials. Fine for API-only usage with Bearer header; flag for production hardening."
   ],
-  "updated_files": ["/app/backend/tests/backend_test.py"],
-  "success_rate": {"backend": "100%", "frontend": "100%"},
-  "test_credentials": "Used /app/memory/test_credentials.md: owner wadi.bardawil@gmail.com/Bots!Admin2026, editor editor@bots.demo/Demo!Editor1, viewer viewer@bots.demo/Demo!Viewer1, group group@bots.demo/Demo!Group1, isolated isolated@bots.demo/Demo!Isolated1 — all valid.",
+  "updated_files": [
+    "/app/backend/tests/backend_test.py"
+  ],
+  "success_rate": {
+    "backend": "100%",
+    "frontend": "100%"
+  },
+  "test_credentials": "from env: ADMIN_EMAIL / ADMIN_PASSWORD / DEMO_USERS_PASSWORD (values never stored in the repo)",
   "seed_data_creation": "Created TEST_opportunity_regression under o-northwind via editor; also added TEST_regression snapshot via publish. Benign demo data under o-northwind, no production impact.",
   "retest_needed": false,
   "main_agent_can_self_test": true,

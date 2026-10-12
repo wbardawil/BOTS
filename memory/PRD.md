@@ -116,6 +116,20 @@ operational readiness; labeled AI + demo data; persistence; optimistic concurren
   (In-app nudges; scheduled email is a later option.)
 - Verified: /app/backend/tests/test_iteration6.py (17/17) + full frontend flows (testing agent, 100%).
 
+## Implemented (2026-10-12) — engagement engine M0: control, scrub and noise removal
+- Tests read credentials from the environment and skip when unset; no credential or preview-host literal
+  remains in tests or `test_reports/`. Archive cleanups pass `confirm=true`.
+- The Emergent Vite plugins are optional (dynamic import); `@emergentbase/*` dev dependencies removed; the
+  build is vendor-free.
+- `implementation_status` removed from seed and drawer: lifecycle `stage` is the only progress state;
+  `phase` is the AI-ambition attribute. Phase names live only in `PHASE_NAMES` (frontend) and `seed.PHASES`
+  (backend), placeholders pending the owner's rename.
+- Navigation trimmed to Dashboards, Inventory, Pipeline, Framework Canvas, Operating Map, Roadmap,
+  Executive Overview, Assessments, Group Oversight, Settings. The nine per-type pages, Capability Model
+  and Value Chain pages, and the Adoption tab are gone; records are created from Inventory (type select +
+  New). Adoption-assignment data is kept but no longer surfaced.
+- `memory/SERVICE-flagship.md` holds the challenged engagement blueprint (day plan, deliverables, pricing).
+
 ## Backlog / Next Stage (deferred per MVP scope)
 - P1: richer playbook editor; initiative workstreams per company; invitations/revocation UI;
   per-request membership caching (N+1); split server.py into routers.

@@ -172,4 +172,4 @@ class TestRoadmapAuthoring:
 
     def test_cleanup(self, tokens):
         eid = TestRoadmapAuthoring._init_id
-        requests.delete(f"{API}/entities/{eid}", headers=H(tokens["owner"]), timeout=10)
+        requests.post(f"{API}/entities/{eid}/archive", params={"confirm": "true"}, headers=H(tokens["owner"]), timeout=10)

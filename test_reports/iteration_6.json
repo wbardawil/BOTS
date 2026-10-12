@@ -1,7 +1,14 @@
 {
-  "summary": "Iteration 6 (Custom Stages + Portfolio ROI + Measurement Reminders + phase_counts/stages in analytics) tested end-to-end on https://transition-map-1.preview.emergentagent.com. Backend: created /app/backend/tests/test_iteration6.py with 17 pytest cases across 6 test classes — all 17 PASSED. Frontend: logged in as platform admin on Northwind workspace and verified: (a) Settings → Pipeline stages editor (data-testid stage-editor) with 8 default rows, rename/add/gate-toggle/reorder work, Save shows toast 'Pipeline stages saved. The board and inventory now use them.' and the new 'teststagex' row is persisted (verified via GET /organizations/o-northwind/stages after save); (b) Pipeline board renders 8 columns pipeline-col-{key} and 25 cards pipeline-card-{id}, each card shows area label (Strategy & Leadership…), Phase pill (Phase 1), owner warning ⚠ for no-owner records, and gated ⬥ markers on Approved/In progress/Live/Realized; area filter pipeline-area-filter narrows 25→1 for 'strategy'; selecting Approved on opp-nw-2 raises error toast exactly 'Assign an owner before moving to “Approved”. Gated stages need an accountable owner.' (c) Dashboard: reminders-banner reads '1 measurement checkpoint due — record realized benefit on records that are now 3 / 6 / 12 months past Live.'; widget-roi_by_area, widget-phase_progress and widget-reminders render; Arrange (dash-edit-btn) opens dash-add-widget with 9 items including add-widget-roi_by_area, add-widget-phase_progress, add-widget-reminders; shared filter-stage=discovery changes '37 of 37 records' → '3 of 37 records'; dash-save-btn and dash-publish-default present. (d) Workspace switcher → ws-ws-meridian → nav-oversight → pf-pf-a renders portfolio-roi table with rows portfolio-roi-o-vertex and portfolio-roi-o-harbor (dedupe confirmed), area color dots and function-family legend visible, aggregation methodology notes shown. Stages restored to defaults at end of UI run (verified GET).",
-  "backend_issues": {"critical": [], "minor": []},
-  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "summary": "Iteration 6 (Custom Stages + Portfolio ROI + Measurement Reminders + phase_counts/stages in analytics) tested end-to-end on <preview-host> Backend: created /app/backend/tests/test_iteration6.py with 17 pytest cases across 6 test classes — all 17 PASSED. Frontend: logged in as platform admin on Northwind workspace and verified: (a) Settings → Pipeline stages editor (data-testid stage-editor) with 8 default rows, rename/add/gate-toggle/reorder work, Save shows toast 'Pipeline stages saved. The board and inventory now use them.' and the new 'teststagex' row is persisted (verified via GET /organizations/o-northwind/stages after save); (b) Pipeline board renders 8 columns pipeline-col-{key} and 25 cards pipeline-card-{id}, each card shows area label (Strategy & Leadership…), Phase pill (Phase 1), owner warning ⚠ for no-owner records, and gated ⬥ markers on Approved/In progress/Live/Realized; area filter pipeline-area-filter narrows 25→1 for 'strategy'; selecting Approved on opp-nw-2 raises error toast exactly 'Assign an owner before moving to “Approved”. Gated stages need an accountable owner.' (c) Dashboard: reminders-banner reads '1 measurement checkpoint due — record realized benefit on records that are now 3 / 6 / 12 months past Live.'; widget-roi_by_area, widget-phase_progress and widget-reminders render; Arrange (dash-edit-btn) opens dash-add-widget with 9 items including add-widget-roi_by_area, add-widget-phase_progress, add-widget-reminders; shared filter-stage=discovery changes '37 of 37 records' → '3 of 37 records'; dash-save-btn and dash-publish-default present. (d) Workspace switcher → ws-ws-meridian → nav-oversight → pf-pf-a renders portfolio-roi table with rows portfolio-roi-o-vertex and portfolio-roi-o-harbor (dedupe confirmed), area color dots and function-family legend visible, aggregation methodology notes shown. Stages restored to defaults at end of UI run (verified GET).",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
   "test_report_links": [
     "/app/backend/tests/test_iteration6.py",
     "/app/test_reports/pytest/iteration6_results.xml"
@@ -15,9 +22,14 @@
     "Settings page is a single 156-line file but StageEditor is already a sub-component. Fine as-is; no refactor needed.",
     "Frontend: `page.goto('/settings')` from an unauthenticated or freshly-loaded context redirects to '/'. Using the sidebar nav-settings link works. Not a bug but worth noting SPA deep-link to /settings served the root page in my test — may be a react-router basename or ingress rewrite subtlety."
   ],
-  "updated_files": ["/app/backend/tests/test_iteration6.py (new)"],
-  "success_rate": {"backend": "100% (17/17)", "frontend": "100%"},
-  "test_credentials": "wadi.bardawil@gmail.com / Bots!Admin2026 (platform admin); viewer@bots.demo / Demo!Viewer1 (Northwind viewer); editor@bots.demo / Demo!Editor1",
+  "updated_files": [
+    "/app/backend/tests/test_iteration6.py (new)"
+  ],
+  "success_rate": {
+    "backend": "100% (17/17)",
+    "frontend": "100%"
+  },
+  "test_credentials": "from env: ADMIN_EMAIL / ADMIN_PASSWORD / DEMO_USERS_PASSWORD (values never stored in the repo)",
   "seed_data_creation": "No net new seed. Side effects of tests, all reverted: (a) backend tests mutate init-nw-1 area to 'sales' via bulk — harmless; (b) opp-nw-2 owner briefly cleared then restored path exercised; (c) stages for o-northwind were edited (rename+add+gate+reorder) and restored by the module-scoped fixture AND by the UI restore step. Final GET /organizations/o-northwind/stages confirms 8 defaults with the original gated set.",
   "retest_needed": false,
   "should_main_agent_self_test": true,

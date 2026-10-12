@@ -4,8 +4,14 @@ import os
 import pytest
 import requests
 
-BASE_URL = os.environ.get("REACT_APP_BACKEND_URL", "https://transition-map-1.preview.emergentagent.com").rstrip("/")
+BASE_URL = (os.environ.get("BOTS_TEST_BASE_URL") or os.environ.get("REACT_APP_BACKEND_URL") or "http://localhost:8001").rstrip("/")
 API = f"{BASE_URL}/api"
+
+_ADMIN_EMAIL = os.environ.get("ADMIN_EMAIL") or ""
+_ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD") or ""
+_DEMO_PW = os.environ.get("DEMO_USERS_PASSWORD") or ""
+if not (_ADMIN_EMAIL and _ADMIN_PASSWORD and _DEMO_PW):
+    pytest.skip("Set ADMIN_EMAIL, ADMIN_PASSWORD and DEMO_USERS_PASSWORD to run the API tests.", allow_module_level=True)
 
 ORG = "o-northwind"
 OTHER_ORG = "o-vertex"
@@ -19,17 +25,17 @@ def _login(email, password):
 
 @pytest.fixture(scope="module")
 def owner_tok():
-    return _login("wadi.bardawil@gmail.com", "Bots!Admin2026")
+    return _login(_ADMIN_EMAIL, _ADMIN_PASSWORD)
 
 
 @pytest.fixture(scope="module")
 def viewer_tok():
-    return _login("viewer@bots.demo", "Demo!Viewer1")
+    return _login("viewer@bots.demo", _DEMO_PW)
 
 
 @pytest.fixture(scope="module")
 def editor_tok():
-    return _login("editor@bots.demo", "Demo!Editor1")
+    return _login("editor@bots.demo", _DEMO_PW)
 
 
 def H(t):

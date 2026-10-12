@@ -3,17 +3,17 @@ import os
 import pytest
 import requests
 
-from pathlib import Path
-if not os.environ.get("REACT_APP_BACKEND_URL"):
-    for line in Path("/app/frontend/.env").read_text().splitlines():
-        if line.startswith("REACT_APP_BACKEND_URL="):
-            os.environ["REACT_APP_BACKEND_URL"] = line.split("=", 1)[1].strip()
-BASE_URL = os.environ["REACT_APP_BACKEND_URL"].rstrip("/")
+BASE_URL = (os.environ.get("BOTS_TEST_BASE_URL") or os.environ.get("REACT_APP_BACKEND_URL") or "http://localhost:8001").rstrip("/")
 API = f"{BASE_URL}/api"
 
-ADMIN = {"email": "wadi.bardawil@gmail.com", "password": "Bots!Admin2026"}
-VIEWER = {"email": "viewer@bots.demo", "password": "Demo!Viewer1"}
-EDITOR = {"email": "editor@bots.demo", "password": "Demo!Editor1"}
+_ADMIN_EMAIL = os.environ.get("ADMIN_EMAIL") or ""
+_ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD") or ""
+_DEMO_PW = os.environ.get("DEMO_USERS_PASSWORD") or ""
+if not (_ADMIN_EMAIL and _ADMIN_PASSWORD and _DEMO_PW):
+    pytest.skip("Set ADMIN_EMAIL, ADMIN_PASSWORD and DEMO_USERS_PASSWORD to run the API tests.", allow_module_level=True)
+ADMIN = {"email": _ADMIN_EMAIL, "password": _ADMIN_PASSWORD}
+VIEWER = {"email": "viewer@bots.demo", "password": _DEMO_PW}
+EDITOR = {"email": "editor@bots.demo", "password": _DEMO_PW}
 
 ORG = "o-northwind"
 DEFAULT_STAGES = [

@@ -1,11 +1,19 @@
 {
-  "summary": "Phase-1 canvas upgrades (Saved Layouts + Inline Roadmap Authoring) tested end-to-end: 14/14 new backend tests pass, all 12 UI acceptance criteria verified. Backend: GET/PUT /organizations/{id}/framework-layout works, require_write enforced (viewer→403), shared per company (editor sees owner's saves), distinct per org (Vertex independent of Northwind), reset writes empty overrides, publish() includes payload.layout snapshot. Frontend (owner wadi.bardawil@gmail.com): fc-arrange-toggle shows handles; dragging fc-drag-sec-C shows fc-layout-bar with fc-save-layout enabled; save → success; reload persists via GET; reset clears overrides. fc-add-sales-1 creates initiative with data.area='sales', data.phase=1 and opens drawer titled 'New initiative'. dtab-Roadmap present; rm-dep-add picker links 'Lead Qualification Agent' as removable chip (depends_on relationship created); rm-acc-text/rm-acc-add persist in data.acceptance_items; rm-adopt-text/rm-adopt-add persist (default 'assigned'); rm-adopt-<id> cycles states; roadmap cell renders a ◷ marker on the new initiative confirming incomplete adoption indicator (visible in screenshot). Quick fields saved → data.owner, data.status, data.deliverable, data.target_date all persisted after reload. Viewer (viewer@bots.demo): fc-arrange-toggle absent, fc-drag-sec-C absent, fc-fit-all still present (pan/zoom + record open still work). Regression: all 4 sections render, fit controls work, zoom works, secondary views load.",
-  "backend_issues": {"critical": [], "minor": []},
+  "summary": "Phase-1 canvas upgrades (Saved Layouts + Inline Roadmap Authoring) tested end-to-end: 14/14 new backend tests pass, all 12 UI acceptance criteria verified. Backend: GET/PUT /organizations/{id}/framework-layout works, require_write enforced (viewer→403), shared per company (editor sees owner's saves), distinct per org (Vertex independent of Northwind), reset writes empty overrides, publish() includes payload.layout snapshot. Frontend (owner <owner-email>): fc-arrange-toggle shows handles; dragging fc-drag-sec-C shows fc-layout-bar with fc-save-layout enabled; save → success; reload persists via GET; reset clears overrides. fc-add-sales-1 creates initiative with data.area='sales', data.phase=1 and opens drawer titled 'New initiative'. dtab-Roadmap present; rm-dep-add picker links 'Lead Qualification Agent' as removable chip (depends_on relationship created); rm-acc-text/rm-acc-add persist in data.acceptance_items; rm-adopt-text/rm-adopt-add persist (default 'assigned'); rm-adopt-<id> cycles states; roadmap cell renders a ◷ marker on the new initiative confirming incomplete adoption indicator (visible in screenshot). Quick fields saved → data.owner, data.status, data.deliverable, data.target_date all persisted after reload. Viewer (viewer@bots.demo): fc-arrange-toggle absent, fc-drag-sec-C absent, fc-fit-all still present (pan/zoom + record open still work). Regression: all 4 sections render, fit controls work, zoom works, secondary views load.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
   "frontend_issues": {
     "ui_bugs": [],
     "integration_issues": [],
     "design_issues": [
-      {"screen": "Roadmap tab — rm-dep-add <select>", "issues": ["Dev-build injects <span data-ve-dynamic> wrappers inside <option> elements, triggering a React 'In HTML, <span> cannot be a child of <option>' hydration warning. Likely a dev-tooling (ve) artifact rather than production code, but noisy in console. Consider rendering dep options as plain text (no component wrapping) to silence."]}
+      {
+        "screen": "Roadmap tab — rm-dep-add <select>",
+        "issues": [
+          "Dev-build injects <span data-ve-dynamic> wrappers inside <option> elements, triggering a React 'In HTML, <span> cannot be a child of <option>' hydration warning. Likely a dev-tooling (ve) artifact rather than production code, but noisy in console. Consider rendering dep options as plain text (no component wrapping) to silence."
+        ]
+      }
     ]
   },
   "test_report_links": [
@@ -27,8 +35,11 @@
   "updated_files": [
     "/app/backend/tests/test_layout_roadmap.py (new regression suite for Phase-1 endpoints)"
   ],
-  "success_rate": {"backend": "100% (14/14 new tests + prior 31 unchanged)", "frontend": "100% (12/12 acceptance criteria)"},
-  "test_credentials": "Used owner wadi.bardawil@gmail.com / Bots!Admin2026, editor editor@bots.demo / Demo!Editor1, viewer viewer@bots.demo / Demo!Viewer1 (from /app/memory/test_credentials.md).",
+  "success_rate": {
+    "backend": "100% (14/14 new tests + prior 31 unchanged)",
+    "frontend": "100% (12/12 acceptance criteria)"
+  },
+  "test_credentials": "from env: ADMIN_EMAIL / ADMIN_PASSWORD / DEMO_USERS_PASSWORD (values never stored in the repo)",
   "seed_data_creation": "Created and then archived test initiative 51727cb01071a29b27dc7b98 in o-northwind sales/phase1 ('New initiative'). Northwind layout reset to empty overrides at end. Backend tests publish an extra Northwind snapshot (TEST_layout snapshot) — expected and matches prior iteration's publish test behavior.",
   "retest_needed": false,
   "main_agent_can_self_test": true,

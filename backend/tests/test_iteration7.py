@@ -8,13 +8,20 @@ import os
 import pytest
 import requests
 
-BASE = os.environ["REACT_APP_BACKEND_URL"].rstrip("/")
+BASE = (os.environ.get("BOTS_TEST_BASE_URL") or os.environ.get("REACT_APP_BACKEND_URL") or "http://localhost:8001").rstrip("/")
 API = f"{BASE}/api"
 
-ADMIN = {"email": "wadi.bardawil@gmail.com", "password": "Bots!Admin2026"}
-VIEWER = {"email": "viewer@bots.demo", "password": "Demo!Viewer1"}
+_ADMIN_EMAIL = os.environ.get("ADMIN_EMAIL") or ""
+_ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD") or ""
+_DEMO_PW = os.environ.get("DEMO_USERS_PASSWORD") or ""
+if not (_ADMIN_EMAIL and _ADMIN_PASSWORD and _DEMO_PW):
+    pytest.skip("Set ADMIN_EMAIL, ADMIN_PASSWORD and DEMO_USERS_PASSWORD to run the API tests.", allow_module_level=True)
+ADMIN = {"email": _ADMIN_EMAIL, "password": _ADMIN_PASSWORD}
+VIEWER = {"email": "viewer@bots.demo", "password": _DEMO_PW}
 
-CRON_SECRET = "bots_cron_6d9f2a7c41e84b0db35e8f1c9a24e7f0"
+CRON_SECRET = os.environ.get("WEBHOOK_CRON_SECRET") or ""
+if not CRON_SECRET:
+    pytest.skip("Set WEBHOOK_CRON_SECRET to run the cron tests.", allow_module_level=True)
 
 
 def _login(creds):
@@ -93,7 +100,7 @@ class TestRoadmapTemplate:
         # Archive created template initiatives so o-conf stays clean.
         failed = []
         for eid in TestRoadmapTemplate.created_ids:
-            r = requests.post(f"{API}/entities/{eid}/archive", headers=admin_headers, timeout=20)
+            r = requests.post(f"{API}/entities/{eid}/archive", params={"confirm": "true"}, headers=admin_headers, timeout=20)
             if r.status_code not in (200, 204):
                 failed.append((eid, r.status_code, r.text[:120]))
         assert not failed, f"Cleanup failures: {failed}"

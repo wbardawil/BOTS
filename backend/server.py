@@ -1055,14 +1055,19 @@ async def measurement_reminders(org_id: str, user: dict = Depends(get_current_us
 
 
 # ---------------- Roadmap templates (one-click Co-Pilot → Brain → Autonomous per area) ----------------
+# Step names come from seed.PHASES (the single backend home of the phase vocabulary).
+def _phase_name(n):
+    return next((p["name"] for p in seed_module.PHASES if p["n"] == n), f"Phase {n}")
+
+
 ROADMAP_STEPS = [
-    {"phase": 1, "step": "AI Co-Pilot",
+    {"phase": 1, "step": _phase_name(1),
      "problem": "Manual, repetitive tasks are slow and vary in quality.",
      "deliverables": "Pilot a human-directed co-pilot on one high-volume task; revise the SOP."},
-    {"phase": 2, "step": "AI Brain",
+    {"phase": 2, "step": _phase_name(2),
      "problem": "Team knowledge is scattered; the co-pilot lacks governed context.",
      "deliverables": "Organize the knowledge base into a governed brain supporting authorized workflows."},
-    {"phase": 3, "step": "Autonomous Agents",
+    {"phase": 3, "step": _phase_name(3),
      "problem": "Selected workflows are ready to run within approved boundaries.",
      "deliverables": "Enable bounded autonomous execution with human escalation and audit."},
 ]

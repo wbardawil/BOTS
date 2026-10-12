@@ -204,7 +204,7 @@ async def seed_demo(force=False):
                          "allowed_actions": "Score leads; draft replies",
                          "prohibited_actions": "Send replies without approval; modify CRM records",
                          "approval_requirements": "Human approves all outbound replies",
-                         "status": "Pilot", "implementation_status": "pilot",
+                         "status": "Pilot",
                          "exceptions": "Low-confidence leads routed to human",
                          "escalation": "Head of Sales",
                          "sourcing": "hybrid", "vendor": "HubSpot Breeze + custom scoring prompt",
@@ -218,7 +218,6 @@ async def seed_demo(force=False):
     entities.append(ent("agent-nw-fcst", "agent", o, w,
                         {"name": "Demand Forecast Agent", "area": "operations", "purpose": "Draft demand forecasts",
                          "human_owner": "Jordan Blake", "status": "Under Assessment",
-                         "implementation_status": "candidate",
                          "allowed_actions": "Produce forecast drafts",
                          "prohibited_actions": "Change inventory",
                          "sourcing": "build", "vendor": "In-house (Python forecasting service + OpenAI for narrative)",
@@ -231,7 +230,7 @@ async def seed_demo(force=False):
     entities.append(ent("agent-nw-report", "agent", o, w,
                         {"name": "Compliance Report Agent", "area": "legal", "purpose": "Compile compliance reports",
                          "human_owner": None,  # missing owner -> cannot advance
-                         "status": "Candidate", "implementation_status": "candidate",
+                         "status": "Candidate",
                          "sourcing": "buy", "vendor": "Vanta (SOC 2 evidence collection)",
                          "cost_estimate": 1200, "cost_period": "monthly", "currency": "USD",
                          "risk_level": "high", "risk_category": "legal", "data_sensitivity": "confidential",
@@ -340,7 +339,7 @@ async def seed_demo(force=False):
         lead, brain, ag, op, ini = f"role-nw-{bk}-lead", f"know-nw-{bk}", f"agent-nw-{bk}", f"opp-nw-{bk}", f"init-nw-{bk}"
         entities.append(ent(lead, "role", o, w, {"name": f"Head of {blabel}", "area": bk, "type": "human_head", "accountable_owner": "Named Owner"}, status="published"))
         entities.append(ent(brain, "knowledge_source", o, w, {"name": f"{blabel} Knowledge Base", "area": bk, "owner": "Named Owner", "freshness_rule": "Review quarterly"}, status="published"))
-        entities.append(ent(ag, "agent", o, w, {"name": f"{blabel} Co-Pilot", "area": bk, "purpose": f"Support {blabel} workflows with human review", "human_owner": "Named Owner", "status": "Pilot" if ph == 1 else "Under Assessment", "implementation_status": "pilot" if ph == 1 else "candidate", "allowed_actions": "Draft & suggest", "prohibited_actions": "Act without approval",
+        entities.append(ent(ag, "agent", o, w, {"name": f"{blabel} Co-Pilot", "area": bk, "purpose": f"Support {blabel} workflows with human review", "human_owner": "Named Owner", "status": "Pilot" if ph == 1 else "Under Assessment" if ph == 1 else "candidate", "allowed_actions": "Draft & suggest", "prohibited_actions": "Act without approval",
                                               "sourcing": "buy" if ph == 1 else "hybrid", "vendor": "Vendor co-pilot in the team's existing tool" if ph == 1 else "Vendor platform + custom knowledge retrieval", "cost_estimate": 30 if ph == 1 else 400, "cost_period": "per_use" if ph == 1 else "monthly", "currency": "USD",
                                               "risk_level": "low" if ph == 1 else "medium", "risk_category": "accuracy", "data_sensitivity": "internal", "regulatory_flags": "", "required_controls": "Human reviews every output before it leaves the team"}, status="published", phase=ph))
         entities.append(ent(op, "opportunity", o, w, {"name": f"Automate {blabel} task", "area": bk, "candidate_phase": ph, "priority": "medium", "owner": "Named Owner"}, status="published"))
@@ -377,8 +376,7 @@ async def seed_demo(force=False):
                                 {"name": f"{prefix.title()} Agent {i+1}", "area": CANON_KEYS[i],
                                  "purpose": "Support a bounded workflow",
                                  "human_owner": "Named Owner" if i == 0 else None,
-                                 "status": "Pilot" if ph == 1 else "Candidate",
-                                 "implementation_status": "pilot" if ph == 1 else "candidate"},
+                                 "status": "Pilot" if ph == 1 else "Candidate" if ph == 1 else "candidate"},
                                 status="published", phase=ph))
             entities.append(ent(f"opp-{prefix}-{i}", "opportunity", org_id, ws_id,
                                 {"name": f"Opportunity {i+1}", "area": CANON_KEYS[i], "priority": "medium",

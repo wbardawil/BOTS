@@ -17,7 +17,7 @@ import {
 import { toast } from "sonner";
 
 const BASE_TABS = ["Overview", "Responsibilities", "Workflow", "Dependencies", "Playbook",
-  "Implementation", "Adoption", "Metrics", "Decisions", "Files", "History"];
+  "Implementation", "Metrics", "Decisions", "Files", "History"];
 
 export default function DetailDrawer() {
   const { selectedId, setSelectedId, currentOrg, bumpReload } = useScope();
@@ -155,7 +155,7 @@ export default function DetailDrawer() {
   );
 }
 
-const HIDE_KEYS = ["name", "phase", "steps", "evidence_ids", "target_entity"];
+const HIDE_KEYS = ["name", "phase", "steps", "evidence_ids", "target_entity", "implementation_status"];
 
 function TabBody({ tab, ent, form, setForm, edit, audit, reload, canWrite }) {
   const { setSelectedId } = useScope();
@@ -251,7 +251,7 @@ function TabBody({ tab, ent, form, setForm, edit, audit, reload, canWrite }) {
     ) : <Muted>No playbook linked to this record.</Muted>;
   }
   if (tab === "Implementation")
-    return <EditableFields keys={["implementation_status", "status", "trigger", "inputs", "outputs", "deliverables", "start_date", "target_date", "budget", "currency"]} />;
+    return <EditableFields keys={["status", "trigger", "inputs", "outputs", "deliverables", "start_date", "target_date", "budget", "currency"]} />;
   if (tab === "Sourcing & Risk")
     return (
       <div className="space-y-6" data-testid="sourcing-risk-tab">
@@ -273,13 +273,6 @@ function TabBody({ tab, ent, form, setForm, edit, audit, reload, canWrite }) {
         </section>
       </div>
     );
-  if (tab === "Adoption") {
-    const a = rels.filter((r) => r.to_type === "adoption_assignment" || r.from_type === "adoption_assignment");
-    return a.length ? a.map((r) => {
-      const id = r.from_type === "adoption_assignment" ? r.from_id : r.to_id;
-      return <button key={r.id} onClick={() => setSelectedId(id)} className="card-surface rounded-lg p-3 w-full text-left hover:bg-accent mb-2">Open adoption assignment →</button>;
-    }) : <Muted>No adoption assignments linked. Learning completion ≠ operational readiness.</Muted>;
-  }
   if (tab === "Metrics") {
     if (ent.etype === "metric") return (
       <div className="grid grid-cols-2 gap-3">

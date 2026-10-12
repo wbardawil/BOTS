@@ -1,7 +1,14 @@
 {
-  "summary": "Iteration 7 (Roadmap Templates + Scheduled Nudges cron + owner_email) tested end-to-end on https://transition-map-1.preview.emergentagent.com. Backend: /app/backend/tests/test_iteration7.py with 14 pytest cases across 5 classes — all 14 PASSED. Covers: (a) POST /organizations/{id}/roadmap-template on o-conf with areas=['legal'] creates 3 draft/discovery/template=true initiatives with phases [1,2,3], second call returns created=0 skipped=3 (idempotent), viewer@bots.demo → 403 on o-northwind; (b) POST /cron/checkpoint-nudges → 401 (no auth), 401 (wrong bearer), 200 {ok:true,queued:true} with correct WEBHOOK_CRON_SECRET bearer; (c) PUT /entities/{id} with data.owner_email='delivered@resend.dev' persists (GET confirms, restored to prior value afterwards); (d) Regression: /organizations/o-northwind/reminders still shows Sales Co-Pilot m6; stages default list, portfolio pf-a analytics, viewer isolation (403 on o-conf entities), org analytics all 200. Frontend: logged in as isolated@bots.demo (Confidential Corp) → nav-roadmap → Transformation Roadmap view shows 'Seed roadmap template' button (data-testid roadmap-seed-template); first click toast exactly 'Seeded 30 draft initiatives (Co-Pilot → Brain → Autonomous per area).' and matrix fills to 35 road-item cards (Phase 1 Co-Pilots / Phase 2 Brains / Phase 3 Autonomous columns, all with Planned Initiative badge); second click toast exactly 'Template already seeded — nothing to add.' (idempotency confirmed). Opened first road-item → dtab-Responsibilities → drawer-edit-btn → edit-owner_email input present and editable → drawer-save-btn persisted. All seeded template initiatives on o-conf (33 total, incl. prior backend test leftovers) archived at end via POST /entities/{id}/archive, and Cf Transformation owner_email restored to empty so demo data stays clean.",
-  "backend_issues": {"critical": [], "minor": []},
-  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "summary": "Iteration 7 (Roadmap Templates + Scheduled Nudges cron + owner_email) tested end-to-end on <preview-host> Backend: /app/backend/tests/test_iteration7.py with 14 pytest cases across 5 classes — all 14 PASSED. Covers: (a) POST /organizations/{id}/roadmap-template on o-conf with areas=['legal'] creates 3 draft/discovery/template=true initiatives with phases [1,2,3], second call returns created=0 skipped=3 (idempotent), viewer@bots.demo → 403 on o-northwind; (b) POST /cron/checkpoint-nudges → 401 (no auth), 401 (wrong bearer), 200 {ok:true,queued:true} with correct WEBHOOK_CRON_SECRET bearer; (c) PUT /entities/{id} with data.owner_email='delivered@resend.dev' persists (GET confirms, restored to prior value afterwards); (d) Regression: /organizations/o-northwind/reminders still shows Sales Co-Pilot m6; stages default list, portfolio pf-a analytics, viewer isolation (403 on o-conf entities), org analytics all 200. Frontend: logged in as isolated@bots.demo (Confidential Corp) → nav-roadmap → Transformation Roadmap view shows 'Seed roadmap template' button (data-testid roadmap-seed-template); first click toast exactly 'Seeded 30 draft initiatives (Co-Pilot → Brain → Autonomous per area).' and matrix fills to 35 road-item cards (Phase 1 Co-Pilots / Phase 2 Brains / Phase 3 Autonomous columns, all with Planned Initiative badge); second click toast exactly 'Template already seeded — nothing to add.' (idempotency confirmed). Opened first road-item → dtab-Responsibilities → drawer-edit-btn → edit-owner_email input present and editable → drawer-save-btn persisted. All seeded template initiatives on o-conf (33 total, incl. prior backend test leftovers) archived at end via POST /entities/{id}/archive, and Cf Transformation owner_email restored to empty so demo data stays clean.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
   "test_report_links": [
     "/app/backend/tests/test_iteration7.py",
     "/app/test_reports/pytest/iteration7_results.xml"
@@ -14,9 +21,14 @@
     "/entities uses query param organization_id while almost all other endpoints use /organizations/{id}/... — this inconsistency is historical but worth documenting in an API reference.",
     "cron endpoint uses hmac.compare_digest + Bearer header (good). Consider rate-limiting it anyway in case the token leaks."
   ],
-  "updated_files": ["/app/backend/tests/test_iteration7.py (new)"],
-  "success_rate": {"backend": "100% (14/14)", "frontend": "100%"},
-  "test_credentials": "wadi.bardawil@gmail.com / Bots!Admin2026 (platform admin); viewer@bots.demo / Demo!Viewer1 (Northwind viewer); isolated@bots.demo / Demo!Isolated1 (Confidential Corp admin). WEBHOOK_CRON_SECRET read from /app/backend/.env.",
+  "updated_files": [
+    "/app/backend/tests/test_iteration7.py (new)"
+  ],
+  "success_rate": {
+    "backend": "100% (14/14)",
+    "frontend": "100%"
+  },
+  "test_credentials": "from env: ADMIN_EMAIL / ADMIN_PASSWORD / DEMO_USERS_PASSWORD (values never stored in the repo)",
   "seed_data_creation": "Side effects of this run, all reverted: (a) backend test seeded 3 template initiatives on o-conf for area 'legal' and archived them in a module teardown; (b) UI test seeded 30 (toast reported) template initiatives on o-conf (all 11 CANON areas × 3, minus 3 pre-existing from the backend fixture); a final cleanup script archived all 33 template initiatives on o-conf and restored owner_email on init-cf-1 to empty. Final GET entities for o-conf shows 0 non-archived template:true initiatives. owner_email on the northwind initiative mutated in TestOwnerEmail was restored to its prior value within the test.",
   "retest_needed": false,
   "should_main_agent_self_test": true,

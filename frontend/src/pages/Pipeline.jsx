@@ -125,7 +125,7 @@ export default function Pipeline() {
           );
         })}
       </div>
-      <p className="text-[11px] text-muted-foreground mt-2">⬥ Gated stages need an accountable owner. Left stripe = function-family area; the Phase pill is the AI ambition (Co-Pilot → Brain → Autonomous) from the roadmap.</p>
+      <p className="text-[11px] text-muted-foreground mt-2">⬥ Gated stages need an accountable owner. Left stripe = function-family area; the Phase pill is the AI ambition level (Phase 1 to 3) from the roadmap.</p>
     </div>
   );
 }

@@ -1,8 +1,18 @@
 {
-  "summary": "Phase 1 (reliable content, documentation, lifecycle & dashboards) tested end-to-end on https://transition-map-1.preview.emergentagent.com. Backend: wrote /app/backend/tests/test_phase1_lifecycle.py (17 pytest tests across analytics, lifecycle stage move + gating + 409, attachments upload/list/download/soft-delete + .exe reject, bulk stage/owner/area with blocked reasons, dashboard GET/PUT/reset/default + 403 for viewer, and cross-org isolation). All 17 tests PASSED. Frontend: logged in as platform admin, verified Dashboards renders 6 widgets (roi_rollup, lifecycle_throughput, time_freed, measurement_cadence, inventory_health, roi_by_initiative); shared filters change record count (37→2 when stage=discovery); Arrange mode exposes dash-add-widget/dash-save-btn and Save shows toast 'Your dashboard layout is saved.'; Pipeline shows 8 columns with 25 cards; selecting Approved on opp-nw-2 (no owner) triggers error toast 'Assign an owner before moving to \"Approved\". Gated stages need an accountable owner.'; Inventory lists 78 records, sortable headers (inv-sort-name), row checkbox reveals inv-bulk-bar with bulk-stage/bulk-area/bulk-owner; Record drawer shows dtab-Files (file-input + file-upload-btn) and dtab-'Lifecycle & Value' with 8 stage-btn-* buttons, lifecycle timeline and benefit inputs.",
-  "backend_issues": {"critical": [], "minor": []},
-  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
-  "test_report_links": ["/app/backend/tests/test_phase1_lifecycle.py", "/app/test_reports/pytest/phase1_results.xml"],
+  "summary": "Phase 1 (reliable content, documentation, lifecycle & dashboards) tested end-to-end on <preview-host> Backend: wrote /app/backend/tests/test_phase1_lifecycle.py (17 pytest tests across analytics, lifecycle stage move + gating + 409, attachments upload/list/download/soft-delete + .exe reject, bulk stage/owner/area with blocked reasons, dashboard GET/PUT/reset/default + 403 for viewer, and cross-org isolation). All 17 tests PASSED. Frontend: logged in as platform admin, verified Dashboards renders 6 widgets (roi_rollup, lifecycle_throughput, time_freed, measurement_cadence, inventory_health, roi_by_initiative); shared filters change record count (37→2 when stage=discovery); Arrange mode exposes dash-add-widget/dash-save-btn and Save shows toast 'Your dashboard layout is saved.'; Pipeline shows 8 columns with 25 cards; selecting Approved on opp-nw-2 (no owner) triggers error toast 'Assign an owner before moving to \"Approved\". Gated stages need an accountable owner.'; Inventory lists 78 records, sortable headers (inv-sort-name), row checkbox reveals inv-bulk-bar with bulk-stage/bulk-area/bulk-owner; Record drawer shows dtab-Files (file-input + file-upload-btn) and dtab-'Lifecycle & Value' with 8 stage-btn-* buttons, lifecycle timeline and benefit inputs.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_phase1_lifecycle.py",
+    "/app/test_reports/pytest/phase1_results.xml"
+  ],
   "action_items": [],
   "critical_code_review_comments": [
     "server.py move_stage/bulk use dict spread but data.stage_history is updated via a replacement list; stage_history is capped only by Mongo doc size — consider pruning or paging if long-lived records accumulate many moves.",
@@ -13,8 +23,11 @@
   "updated_files": [
     "/app/backend/tests/test_phase1_lifecycle.py (new)"
   ],
-  "success_rate": {"backend": "100% (17/17)", "frontend": "100%"},
-  "test_credentials": "wadi.bardawil@gmail.com / Bots!Admin2026 (platform_admin); viewer@bots.demo / Demo!Viewer1; editor@bots.demo / Demo!Editor1",
+  "success_rate": {
+    "backend": "100% (17/17)",
+    "frontend": "100%"
+  },
+  "test_credentials": "from env: ADMIN_EMAIL / ADMIN_PASSWORD / DEMO_USERS_PASSWORD (values never stored in the repo)",
   "seed_data_creation": "No new seed. Tests leave an uploaded TEST_notes.txt soft-deleted; opp-nw-2 was mutated during bulk tests then restored (owner cleared, stage=discovery). Default dashboard was re-published with the 6 standard widgets after a transient 1-widget override from the admin-publish-default test. Minor leftover: init-nw-1 moved to 'alternatives' stage then had stage_history entries appended (idempotent, harmless).",
   "retest_needed": false,
   "should_main_agent_self_test": true,

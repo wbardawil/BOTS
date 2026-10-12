@@ -49,22 +49,12 @@ export const MAIN_TABS = [
   { id: "pipeline", label: "Pipeline", icon: Columns3 },
   { id: "framework", label: "Framework Canvas", icon: LayoutDashboard },
   { id: "operating_map", label: "Operating Map", icon: GitBranch },
-  { id: "capability_model", label: "Capability Model", icon: Layers },
-  { id: "value_chain", label: "Value Chain", icon: Workflow },
   { id: "roadmap", label: "Transformation Roadmap", icon: Rocket },
   { id: "executive", label: "Executive Overview", icon: LineChart },
 ];
 
 export const SECONDARY_NAV = [
-  { id: "opportunity", label: "Opportunities", icon: Target, etypes: ["opportunity"] },
-  { id: "agent", label: "Agents & Workflows", icon: Bot, etypes: ["agent", "workflow"] },
-  { id: "systems", label: "Systems & Knowledge", icon: Cpu, etypes: ["system", "knowledge_source"] },
-  { id: "playbook", label: "Playbooks", icon: BookOpen, etypes: ["playbook"] },
-  { id: "initiative", label: "Initiatives", icon: Rocket, etypes: ["initiative"] },
   { id: "assessment", label: "Assessments", icon: ClipboardCheck, special: true },
-  { id: "adoption_assignment", label: "Adoption", icon: ClipboardCheck, etypes: ["adoption_assignment"] },
-  { id: "metric", label: "Metrics & Evidence", icon: LineChart, etypes: ["metric", "evidence"] },
-  { id: "decision", label: "Decisions & Governance", icon: Gavel, etypes: ["decision", "risk_review"] },
   { id: "oversight", label: "Group Oversight", icon: Boxes, special: true },
   { id: "settings", label: "Settings", icon: Settings, special: true },
 ];
@@ -78,15 +68,23 @@ export const STATUS_COLORS = {
 };
 
 // Phases are grayscale so hue stays reserved for function families. Phase 3 = dashed (not yet built).
+// Phase = AI ambition level, an attribute of a record (not its progress; progress is the lifecycle stage).
+// PLACEHOLDER NAMES, rename pending the owner's decision. This table is the only place they live on the frontend;
+// the backend equivalent is seed.PHASES.
+export const PHASE_NAMES = {
+  1: { es: "Copilotos de IA", en: "AI Co-Pilots" },
+  2: { es: "Cerebros de IA", en: "AI Brains" },
+  3: { es: "Agentes autónomos", en: "Autonomous Agents" },
+};
 export const PHASES = [
-  { n: 1, name: "AI Co-Pilots", color: "#111827", dashed: false },
-  { n: 2, name: "AI Brains", color: "#4b5563", dashed: false },
-  { n: 3, name: "Autonomous Agents", color: "#9ca3af", dashed: true },
+  { n: 1, name: PHASE_NAMES[1].en, color: "#111827", dashed: false },
+  { n: 2, name: PHASE_NAMES[2].en, color: "#4b5563", dashed: false },
+  { n: 3, name: PHASE_NAMES[3].en, color: "#9ca3af", dashed: true },
 ];
 export const PHASE_META = {
-  1: { label: "Phase 1 · AI Co-Pilots", color: "222 47% 11%", hex: "#111827", dashed: false },
-  2: { label: "Phase 2 · AI Brains", color: "220 9% 31%", hex: "#4b5563", dashed: false },
-  3: { label: "Phase 3 · Autonomous", color: "220 9% 61%", hex: "#9ca3af", dashed: true },
+  1: { label: `Phase 1 · ${PHASE_NAMES[1].en}`, color: "222 47% 11%", hex: "#111827", dashed: false },
+  2: { label: `Phase 2 · ${PHASE_NAMES[2].en}`, color: "220 9% 31%", hex: "#4b5563", dashed: false },
+  3: { label: `Phase 3 · ${PHASE_NAMES[3].en}`, color: "220 9% 61%", hex: "#9ca3af", dashed: true },
 };
 
 // 11 canonical business areas (fixed id, number and order). `color` = function-family hue.
@@ -166,7 +164,7 @@ export const PIPELINE_ETYPES = ["initiative", "opportunity"];
 
 // Record types managed in the central inventory
 export const INVENTORY_ETYPES = ["initiative", "opportunity", "agent", "workflow", "system",
-  "knowledge_source", "playbook", "metric", "evidence", "decision", "adoption_assignment",
+  "knowledge_source", "playbook", "metric", "evidence", "decision",
   "capability", "process", "role"];
 
 // Keys the drawer renders as fields on the Lifecycle & Value tab

@@ -8,7 +8,6 @@ import { Rocket, Wand2 } from "lucide-react";
 import { toast } from "sonner";
 
 const PHASES = [1, 2, 3];
-const PHASE_LABEL = { 1: "Phase 1 · AI Co-Pilots", 2: "Phase 2 · AI Brains", 3: "Phase 3 · Autonomous" };
 
 export default function Roadmap() {
   const { orgId, currentOrg, setSelectedId, bumpReload } = useScope();
@@ -31,7 +30,7 @@ export default function Roadmap() {
     setSeeding(true);
     try {
       const r = await api.post(`/organizations/${orgId}/roadmap-template`, {});
-      toast.success(r.created ? `Seeded ${r.created} draft initiatives (Co-Pilot → Brain → Autonomous per area).` : "Template already seeded — nothing to add.");
+      toast.success(r.created ? `Seeded ${r.created} draft initiatives (one per phase and area).` : "Template already seeded — nothing to add.");
       load(); bumpReload();
     } catch (e) { toast.error(apiErr(e.response?.data?.detail)); }
     finally { setSeeding(false); }
@@ -67,7 +66,7 @@ export default function Roadmap() {
         <div className="grid md:grid-cols-3 gap-4">
           {PHASES.map((p) => (
             <div key={p} className="card-surface rounded-xl p-4">
-              <h3 className="font-display font-semibold text-sm mb-3" style={{ color: PHASE_META[p].hex }}>{PHASE_LABEL[p]}</h3>
+              <h3 className="font-display font-semibold text-sm mb-3" style={{ color: PHASE_META[p].hex }}>{PHASE_META[p].label}</h3>
               <div className="space-y-2">
                 {items.filter((i) => (i.data.phase || 1) === p).map((i) => (
                   <button key={i.id} data-testid={`road-item-${i.id}`} onClick={() => setSelectedId(i.id)}

@@ -6,10 +6,11 @@ import { StatusBadge, PhasePill, StagePill, DemoTag, Empty } from "@/components/
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
+import { CreateDialog, CREATE_FIELDS } from "@/components/CreateDialog";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuLabel,
 } from "@/components/ui/dropdown-menu";
-import { FolderSearch, ArrowUpDown, X, ChevronDown, Inbox } from "lucide-react";
+import { FolderSearch, ArrowUpDown, X, ChevronDown, Inbox, Plus } from "lucide-react";
 import { toast } from "sonner";
 
 export default function Inventory() {
@@ -20,6 +21,8 @@ export default function Inventory() {
   const [filters, setFilters] = useState({ etype: "", stage: "", owner: "", area: "", status: "" });
   const [sort, setSort] = useState({ key: "name", dir: 1 });
   const [sel, setSel] = useState(new Set());
+  const [createType, setCreateType] = useState("initiative");
+  const [createOpen, setCreateOpen] = useState(false);
 
   const canWrite = ["platform_admin", "workspace_admin", "company_admin", "company_editor"].includes(currentOrg?.role);
 
@@ -82,9 +85,20 @@ export default function Inventory() {
 
   return (
     <div className="p-6 max-w-[1500px] mx-auto fade-up">
-      <div className="mb-4">
-        <h1 className="font-display text-2xl font-bold flex items-center gap-2"><FolderSearch className="h-5 w-5" /> Inventory</h1>
-        <p className="text-sm text-muted-foreground">{currentOrg?.name} · every record, searchable & filterable</p>
+      <div className="mb-4 flex items-start justify-between gap-3 flex-wrap">
+        <div>
+          <h1 className="font-display text-2xl font-bold flex items-center gap-2"><FolderSearch className="h-5 w-5" /> Inventory</h1>
+          <p className="text-sm text-muted-foreground">{currentOrg?.name} · every record, searchable & filterable</p>
+        </div>
+        {canWrite && (
+          <div className="flex items-center gap-2">
+            <select data-testid="inv-create-type" value={createType} onChange={(e) => setCreateType(e.target.value)}
+              className="h-9 rounded-md border border-input bg-white px-2 text-sm">
+              {INVENTORY_ETYPES.filter((t) => CREATE_FIELDS[t]).map((t) => <option key={t} value={t}>{ETYPE[t]?.label || t}</option>)}
+            </select>
+            <Button data-testid="entity-create-btn" onClick={() => setCreateOpen(true)}><Plus className="h-4 w-4 mr-1.5" /> New</Button>
+          </div>
+        )}
       </div>
 
       {/* filters */}
@@ -162,6 +176,7 @@ export default function Inventory() {
           </table>
         </div>
       )}
+      <CreateDialog open={createOpen} setOpen={setCreateOpen} etype={createType} orgId={orgId} onDone={() => { load(); bumpReload(); }} />
     </div>
   );
 }

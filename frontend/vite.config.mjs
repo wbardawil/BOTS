@@ -3,7 +3,6 @@ import { createRequire } from "node:module";
 import { defineConfig, loadEnv, transformWithOxc } from "vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
-import { visualEdits } from "@emergentbase/visual-edits/vite";
 
 const require = createRequire(import.meta.url);
 
@@ -22,7 +21,7 @@ const emergentOverlayDisabled = process.env.DISABLE_EMERGENT_OVERLAY === "true";
 async function loadEmergentOverlay() {
   if (emergentOverlayDisabled) return null;
   try {
-    const mod = await import("@emergentbase/overlay/vite");
+    const mod = await import(/* @vite-ignore */ "@emergentbase/overlay/vite");
     return mod.emergentOverlay();
   } catch (e) {
     console.warn("[emergent-overlay] plugin failed to load; using Vite's overlay instead:", e instanceof Error ? e.message : e);
@@ -47,7 +46,9 @@ function jsxInJs({ tagForVisualEdits }) {
       if (tagForVisualEdits) {
         if (!tag) {
           const { transformSync } = require("@babel/core");
-          const plugin = require("@emergentbase/visual-edits/babel-plugin").default;
+          let plugin = null;
+          try { plugin = require("@emergentbase/visual-edits/babel-plugin").default; } catch { plugin = null; }
+          if (!plugin) { tag = (src) => ({ code: src, map: undefined }); return tag(source, file); }
           tag = (src, filename) =>
             transformSync(src, {
               filename,
@@ -79,13 +80,16 @@ if (!hotReloadDisabled) {
 export default defineConfig(async ({ mode, command }) => {
   const env = loadEnv(mode, __dirname, ["REACT_APP_", "VITE_"]);
   const emergentOverlay = await loadEmergentOverlay();
+  // Optional vendor dev-time plugin (visual edits). Absent package => plain Vite dev server; never a build failure.
+  const visualEdits = visualEditsDisabled ? null
+    : await import(/* @vite-ignore */ "@emergentbase/visual-edits/vite").then((m) => m.visualEdits).catch(() => null);
   return {
     plugins: [
       // Visual-edit tagging is dev-server-only, matching the package's own apply: serve.
-      jsxInJs({ tagForVisualEdits: command === "serve" && !visualEditsDisabled }),
+      jsxInJs({ tagForVisualEdits: command === "serve" && !!visualEdits }),
       react(),
       tailwindcss(),
-      ...(visualEditsDisabled ? [] : [visualEdits()]),
+      ...(visualEdits ? [visualEdits()] : []),
       // No isServe guard: this factory takes no ConfigEnv arg, so build purity here rests
       // on the package's own `apply: "serve"`.
       ...(emergentOverlay ? [emergentOverlay] : []),
