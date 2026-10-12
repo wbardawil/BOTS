@@ -99,12 +99,12 @@ export default function EntityTable({ etypes, title }) {
                       {r.data.name || "(untitled)"} {r.is_demo && <DemoTag />}
                     </td>
                     <td className="px-4 py-3 text-foreground/75">
-                      {owner || (unassigned ? <span className="text-gray-500">⚠ Unassigned</span> : <span className="text-muted-foreground">—</span>)}
+                      {owner || (unassigned ? <span className="text-amber-600">⚠ Unassigned</span> : <span className="text-muted-foreground">—</span>)}
                     </td>
                     <td className="px-4 py-3"><PhasePill phase={r.data.phase} /></td>
                     <td className="px-4 py-3"><StatusBadge status={r.status} /></td>
                     <td className="px-4 py-3 text-xs text-muted-foreground">
-                      {r.last_reviewed_at ? new Date(r.last_reviewed_at).toLocaleDateString() : <span className="text-gray-400">never</span>}
+                      {r.last_reviewed_at ? new Date(r.last_reviewed_at).toLocaleDateString() : <span className="text-amber-600">never</span>}
                     </td>
                   </tr>
                 );

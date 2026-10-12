@@ -3,23 +3,43 @@ import {
   ClipboardCheck, Users, LineChart, Gavel, Settings, Building2, Boxes, Cpu, FileText, LayoutDashboard,
 } from "lucide-react";
 
+// ---- Design tokens (mirror of memory/DESIGN.md §2) ----------------------------------------
+export const INK = "#111827";    // text, black pills, primary buttons
+export const MUTED = "#6b7280";  // secondary text
+export const LINE = "#e5e7eb";   // every border
+export const PAPER = "#ffffff";
+export const SURFACE2 = "#f3f4f6";
+
+// Function families — the only content hues. Color encodes the family, not the department.
+export const FAMILY = {
+  leadership: "#111827",
+  build: "#3b82f6",
+  revenue: "#22c55e",
+  intelligence: "#f59e0b",
+  finance: "#9ca3af",
+  people: "#8b5cf6",
+  governance: "#6b7280",
+};
+export const tint = (hex, alpha = "1f") => `${hex}${alpha}`;
+
+// Record-type accents (HSL triplets for hsl(var) usage); darkened for white backgrounds
 export const ETYPE = {
-  capability: { label: "Capability", color: "168 82% 45%", icon: Layers },
-  process: { label: "Process", color: "199 89% 55%", icon: Workflow },
-  role: { label: "Role / Agent Role", color: "210 30% 70%", icon: Users },
-  system: { label: "System", color: "262 72% 66%", icon: Cpu },
-  knowledge_source: { label: "Knowledge Source", color: "190 70% 55%", icon: Database },
-  opportunity: { label: "Opportunity", color: "38 92% 56%", icon: Target },
-  agent: { label: "Agent", color: "168 82% 45%", icon: Bot },
-  workflow: { label: "Workflow", color: "199 89% 55%", icon: Workflow },
-  initiative: { label: "Initiative", color: "262 72% 66%", icon: Rocket },
-  playbook: { label: "Playbook", color: "38 92% 56%", icon: BookOpen },
-  adoption_assignment: { label: "Adoption", color: "340 75% 60%", icon: ClipboardCheck },
-  metric: { label: "Metric", color: "199 89% 55%", icon: LineChart },
-  evidence: { label: "Evidence", color: "150 60% 55%", icon: FileText },
-  decision: { label: "Decision", color: "38 92% 56%", icon: Gavel },
-  department: { label: "Department", color: "210 30% 70%", icon: Building2 },
-  risk_review: { label: "Risk Review", color: "0 72% 60%", icon: Gavel },
+  capability: { label: "Capability", color: "217 91% 50%", icon: Layers },
+  process: { label: "Process", color: "217 91% 50%", icon: Workflow },
+  role: { label: "Role / Agent Role", color: "220 9% 46%", icon: Users },
+  system: { label: "System", color: "258 90% 60%", icon: Cpu },
+  knowledge_source: { label: "Knowledge Source", color: "38 92% 42%", icon: Database },
+  opportunity: { label: "Opportunity", color: "38 92% 42%", icon: Target },
+  agent: { label: "Agent", color: "142 71% 38%", icon: Bot },
+  workflow: { label: "Workflow", color: "142 71% 38%", icon: Workflow },
+  initiative: { label: "Initiative", color: "222 47% 11%", icon: Rocket },
+  playbook: { label: "Playbook", color: "38 92% 42%", icon: BookOpen },
+  adoption_assignment: { label: "Adoption", color: "258 90% 60%", icon: ClipboardCheck },
+  metric: { label: "Metric", color: "217 91% 50%", icon: LineChart },
+  evidence: { label: "Evidence", color: "142 71% 38%", icon: FileText },
+  decision: { label: "Decision", color: "220 9% 46%", icon: Gavel },
+  department: { label: "Department", color: "220 9% 46%", icon: Building2 },
+  risk_review: { label: "Risk Review", color: "0 72% 45%", icon: Gavel },
 };
 
 export const MAIN_TABS = [
@@ -45,43 +65,51 @@ export const SECONDARY_NAV = [
   { id: "settings", label: "Settings", icon: Settings, special: true },
 ];
 
+// Light-theme status badges
 export const STATUS_COLORS = {
-  draft: "bg-gray-100 text-gray-600 border-gray-300",
-  in_review: "bg-gray-100 text-gray-700 border-gray-300",
-  published: "bg-gray-900 text-white border-gray-900",
-  archived: "bg-white text-gray-400 border-gray-200",
+  draft: "bg-amber-50 text-amber-800 border-amber-200",
+  in_review: "bg-blue-50 text-blue-700 border-blue-200",
+  published: "bg-green-50 text-green-700 border-green-200",
+  archived: "bg-gray-100 text-gray-600 border-gray-200",
 };
 
-export const PHASE_META = {
-  1: { label: "Phase 1 · AI Co-Pilots", color: "#111827" },
-  2: { label: "Phase 2 · AI Brains", color: "#6b7280" },
-  3: { label: "Phase 3 · Autonomous", color: "#9ca3af", dashed: true },
-};
-
-// 11 canonical business areas (fixed id, number and order) for the living framework canvas
-export const CANON_AREAS = [
-  { no: 1, key: "strategy", label: "Strategy & Leadership", color: "#6366f1" },
-  { no: 2, key: "product", label: "Product / Service Management", color: "#818cf8" },
-  { no: 3, key: "operations", label: "Operations & Supply Chain", color: "#06b6d4" },
-  { no: 4, key: "marketing", label: "Marketing & Growth", color: "#0ea5e9" },
-  { no: 5, key: "sales", label: "Sales", color: "#14b8a6" },
-  { no: 6, key: "customer", label: "Customer & Admin", color: "#10b981" },
-  { no: 7, key: "data", label: "Data & Analytics", color: "#f59e0b" },
-  { no: 8, key: "tech", label: "Tech, AI & Automations", color: "#8b5cf6" },
-  { no: 9, key: "finance", label: "Finance", color: "#ec4899" },
-  { no: 10, key: "hr", label: "Human Resources", color: "#65a30d" },
-  { no: 11, key: "legal", label: "Legal, Risk & Compliance", color: "#ef4444" },
+// Phases are grayscale so hue stays reserved for function families. Phase 3 = dashed (not yet built).
+export const PHASES = [
+  { n: 1, name: "AI Co-Pilots", color: "#111827", dashed: false },
+  { n: 2, name: "AI Brains", color: "#4b5563", dashed: false },
+  { n: 3, name: "Autonomous Agents", color: "#9ca3af", dashed: true },
 ];
+export const PHASE_META = {
+  1: { label: "Phase 1 · AI Co-Pilots", color: "222 47% 11%", hex: "#111827", dashed: false },
+  2: { label: "Phase 2 · AI Brains", color: "220 9% 31%", hex: "#4b5563", dashed: false },
+  3: { label: "Phase 3 · Autonomous", color: "220 9% 61%", hex: "#9ca3af", dashed: true },
+};
+
+// 11 canonical business areas (fixed id, number and order). `color` = function-family hue.
+export const CANON_AREAS = [
+  { no: 1, key: "strategy", label: "Strategy & Leadership", family: "leadership", color: FAMILY.leadership },
+  { no: 2, key: "product", label: "Product / Service Management", family: "build", color: FAMILY.build },
+  { no: 3, key: "operations", label: "Operations & Supply Chain", family: "build", color: FAMILY.build },
+  { no: 4, key: "marketing", label: "Marketing & Growth", family: "build", color: FAMILY.build },
+  { no: 5, key: "sales", label: "Sales", family: "revenue", color: FAMILY.revenue },
+  { no: 6, key: "customer", label: "Customer & Admin", family: "revenue", color: FAMILY.revenue },
+  { no: 7, key: "data", label: "Data & Analytics", family: "intelligence", color: FAMILY.intelligence },
+  { no: 8, key: "tech", label: "Tech, AI & Automations", family: "intelligence", color: FAMILY.intelligence },
+  { no: 9, key: "finance", label: "Finance", family: "finance", color: FAMILY.finance },
+  { no: 10, key: "hr", label: "Human Resources", family: "people", color: FAMILY.people },
+  { no: 11, key: "legal", label: "Legal, Risk & Compliance", family: "governance", color: FAMILY.governance },
+];
+export const AREA_BY_KEY = Object.fromEntries(CANON_AREAS.map((a) => [a.key, a]));
 
 // 9 functional branches of the operating/agent org chart (reference top band order)
 export const FUNCTION_BRANCHES = [
-  { key: "sales", label: "Sales", color: "#14b8a6" },
-  { key: "customer", label: "Customer & Admin", color: "#10b981" },
-  { key: "marketing", label: "Marketing & Growth", color: "#0ea5e9" },
-  { key: "product", label: "Product / Service", color: "#818cf8" },
-  { key: "operations", label: "Operations & Supply Chain", color: "#06b6d4" },
-  { key: "data", label: "Data & Analytics", color: "#f59e0b" },
-  { key: "tech", label: "Tech, AI & Automations", color: "#8b5cf6" },
-  { key: "finance", label: "Finance", color: "#ec4899" },
-  { key: "hr", label: "Human Resources", color: "#65a30d" },
+  { key: "sales", label: "Sales", color: FAMILY.revenue },
+  { key: "customer", label: "Customer & Admin", color: FAMILY.revenue },
+  { key: "marketing", label: "Marketing & Growth", color: FAMILY.build },
+  { key: "product", label: "Product / Service", color: FAMILY.build },
+  { key: "operations", label: "Operations & Supply Chain", color: FAMILY.build },
+  { key: "data", label: "Data & Analytics", color: FAMILY.intelligence },
+  { key: "tech", label: "Tech, AI & Automations", color: FAMILY.intelligence },
+  { key: "finance", label: "Finance", color: FAMILY.finance },
+  { key: "hr", label: "Human Resources", color: FAMILY.people },
 ];

@@ -1,5 +1,5 @@
 import { cn } from "@/lib/utils";
-import { STATUS_COLORS } from "@/lib/constants";
+import { STATUS_COLORS, PHASE_META } from "@/lib/constants";
 
 export function StatusBadge({ status }) {
   if (!status) return null;
@@ -13,21 +13,21 @@ export function StatusBadge({ status }) {
 
 export function PhasePill({ phase }) {
   if (!phase) return <span className="text-xs text-muted-foreground">—</span>;
-  const c = { 1: "#111827", 2: "#6b7280", 3: "#9ca3af" }[phase] || "#6b7280";
+  const m = PHASE_META[phase] || { hex: "#6b7280", dashed: false };
   return (
     <span className="inline-flex items-center rounded-md px-2 py-0.5 text-[11px] font-medium border bg-white"
-      style={{ color: c, borderColor: "#d1d5db", borderStyle: phase === 3 ? "dashed" : "solid" }}>
+      style={{ color: m.hex, borderColor: m.hex, borderStyle: m.dashed ? "dashed" : "solid" }}>
       Phase {phase}
     </span>
   );
 }
 
 export function DemoTag() {
-  return <span className="inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-medium bg-gray-100 text-gray-600 border border-gray-300">DEMO</span>;
+  return <span className="inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-medium bg-amber-50 text-amber-800 border border-amber-200">DEMO</span>;
 }
 
 export function AiTag() {
-  return <span className="inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-semibold bg-white text-gray-900 border border-gray-900">AI DRAFT</span>;
+  return <span className="inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-semibold bg-primary text-primary-foreground border border-primary">AI DRAFT</span>;
 }
 
 export function Field({ label, children }) {
