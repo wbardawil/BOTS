@@ -3,13 +3,19 @@ import os
 import pytest
 import requests
 
-BASE_URL = (os.environ.get("REACT_APP_BACKEND_URL") or "https://transition-map-1.preview.emergentagent.com").rstrip("/")
+BASE_URL = (os.environ.get("BOTS_TEST_BASE_URL") or os.environ.get("REACT_APP_BACKEND_URL") or "http://localhost:8001").rstrip("/")
 API = f"{BASE_URL}/api"
 
+_OWNER = (os.environ.get("ADMIN_EMAIL") or "", os.environ.get("ADMIN_PASSWORD") or "")
+_DEMO_PW = os.environ.get("DEMO_USERS_PASSWORD") or ""
+if not (_OWNER[0] and _OWNER[1] and _DEMO_PW):
+    pytest.skip("Set ADMIN_EMAIL, ADMIN_PASSWORD and DEMO_USERS_PASSWORD to run the API tests.", allow_module_level=True)
 CREDS = {
-    "owner": ("wadi.bardawil@gmail.com", "Bots!Admin2026"),
-    "editor": ("editor@bots.demo", "Demo!Editor1"),
-    "viewer": ("viewer@bots.demo", "Demo!Viewer1"),
+    "owner": (_OWNER[0], _OWNER[1], "platform_admin"),
+    "editor": ("editor@bots.demo", _DEMO_PW, None),
+    "viewer": ("viewer@bots.demo", _DEMO_PW, None),
+    "group": ("group@bots.demo", _DEMO_PW, None),
+    "isolated": ("isolated@bots.demo", _DEMO_PW, None),
 }
 
 

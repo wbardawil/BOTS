@@ -575,6 +575,8 @@ async def export_org(org_id: str, user: dict = Depends(get_current_user)):
 async def reseed(user: dict = Depends(get_current_user)):
     if user.get("global_role") != "platform_admin":
         raise HTTPException(403, "Platform admin only")
+    if os.environ.get("ALLOW_DEMO_RESEED", "").lower() != "true":
+        raise HTTPException(403, "Demo reseed is disabled. Set ALLOW_DEMO_RESEED=true to enable it on a demo instance.")
     await seed_module.seed_demo(force=True)
     return {"ok": True}
 

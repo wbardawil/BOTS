@@ -44,12 +44,16 @@ def ent(eid, etype, org_id, ws_id, data, status="draft", state=None, phase=None,
 
 def rel(from_id, ft, to_id, tt, rtype, org_id):
     return {"id": f"r-{from_id}-{to_id}-{rtype}", "organization_id": org_id, "from_id": from_id,
-            "from_type": ft, "to_id": to_id, "to_type": tt, "rel_type": rtype}
+            "from_type": ft, "to_id": to_id, "to_type": tt, "rel_type": rtype, "is_demo": True}
 
 
 async def seed_admin():
-    email = os.environ.get("ADMIN_EMAIL", "admin@example.com").lower()
-    pw = os.environ.get("ADMIN_PASSWORD", "admin123")
+    """Fail closed: no default owner credentials. Set ADMIN_EMAIL and ADMIN_PASSWORD in the environment."""
+    email = (os.environ.get("ADMIN_EMAIL") or "").lower().strip()
+    pw = os.environ.get("ADMIN_PASSWORD") or ""
+    if not email or not pw:
+        print("[seed] ADMIN_EMAIL / ADMIN_PASSWORD not set; no platform admin created or updated.")
+        return
     existing = await db.users.find_one({"email": email})
     if existing is None:
         await db.users.insert_one({
@@ -61,12 +65,14 @@ async def seed_admin():
                                             "global_role": "platform_admin"}})
 
 
+# Demo accounts share one password taken from DEMO_USERS_PASSWORD. If it is unset, no demo users are created.
 DEMO_USERS = [
-    ("u-editor", "editor@bots.demo", "Dana Editor", "Demo!Editor1"),
-    ("u-viewer", "viewer@bots.demo", "Vic Viewer", "Demo!Viewer1"),
-    ("u-group", "group@bots.demo", "Gale Group", "Demo!Group1"),
-    ("u-isolated", "isolated@bots.demo", "Iris Isolated", "Demo!Isolated1"),
+    ("u-editor", "editor@bots.demo", "Dana Editor"),
+    ("u-viewer", "viewer@bots.demo", "Vic Viewer"),
+    ("u-group", "group@bots.demo", "Gale Group"),
+    ("u-isolated", "isolated@bots.demo", "Iris Isolated"),
 ]
+DEMO_PASSWORD = os.environ.get("DEMO_USERS_PASSWORD") or ""
 
 
 async def seed_demo(force=False):
@@ -74,11 +80,15 @@ async def seed_demo(force=False):
     marker = await db.meta.find_one({"id": "demo_seed_v2"})
     if marker and not force:
         return
+    # Only demo rows are ever wiped. Client data (is_demo absent or False) must survive a reseed.
     for c in ["workspaces", "organizations", "portfolios", "memberships", "entities",
               "relationships", "views", "snapshots", "assessments", "audit"]:
-        await db[c].delete_many({"is_demo": True} if c in ("entities",) else {})
+        await db[c].delete_many({"is_demo": True})
     # demo users
-    for uid, email, name, pw in DEMO_USERS:
+    if not DEMO_PASSWORD:
+        print("[seed] DEMO_USERS_PASSWORD not set; demo accounts skipped.")
+    for uid, email, name in (DEMO_USERS if DEMO_PASSWORD else []):
+        pw = DEMO_PASSWORD
         await db.users.update_one({"id": uid}, {"$set": {
             "id": uid, "email": email, "name": name, "password_hash": hash_password(pw),
             "global_role": "company_viewer", "created_at": now()}}, upsert=True)

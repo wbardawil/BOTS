@@ -7,18 +7,19 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Bot, ShieldCheck, GitBranch, Layers } from "lucide-react";
 
-const DEMO = [
-  ["Owner (Platform Admin)", "wadi.bardawil@gmail.com", "Bots!Admin2026"],
-  ["Company Editor", "editor@bots.demo", "Demo!Editor1"],
-  ["Company Viewer (Northwind only)", "viewer@bots.demo", "Demo!Viewer1"],
-  ["Group Viewer (Portfolio A)", "group@bots.demo", "Demo!Group1"],
-];
+// Demo accounts appear only on demo builds: set REACT_APP_DEMO_PASSWORD (same value as the backend's DEMO_USERS_PASSWORD).
+const DEMO_PW = process.env.REACT_APP_DEMO_PASSWORD || "";
+const DEMO = DEMO_PW ? [
+  ["Company Editor", "editor@bots.demo", DEMO_PW],
+  ["Company Viewer (Northwind only)", "viewer@bots.demo", DEMO_PW],
+  ["Group Viewer (Portfolio A)", "group@bots.demo", DEMO_PW],
+] : [];
 
 export default function Login() {
   const { login } = useAuth();
   const nav = useNavigate();
-  const [email, setEmail] = useState("wadi.bardawil@gmail.com");
-  const [password, setPassword] = useState("Bots!Admin2026");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [err, setErr] = useState("");
   const [busy, setBusy] = useState(false);
 
@@ -88,7 +89,7 @@ export default function Login() {
               {busy ? "Signing in…" : "Sign in"}
             </Button>
           </form>
-          <div className="rounded-lg card-surface p-3 space-y-1.5">
+          {DEMO.length > 0 && <div className="rounded-lg card-surface p-3 space-y-1.5">
             <p className="text-xs font-medium text-muted-foreground mb-1">Demo accounts (click to fill)</p>
             {DEMO.map(([label, em, pw]) => (
               <button key={em} type="button"
@@ -99,7 +100,7 @@ export default function Login() {
                 <span className="mono text-muted-foreground">{em}</span>
               </button>
             ))}
-          </div>
+          </div>}
         </div>
       </div>
     </div>

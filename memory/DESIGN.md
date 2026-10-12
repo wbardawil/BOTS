@@ -95,7 +95,7 @@ Radius: cards 10px, chips 6px, pills 999px. Spacing base 4px.
 - DON'T invent third-level taxonomy codes (`1.1.1`) unless the data model has
   them; group codes (`1.1`, `1.2`) are the group ordinal inside an area.
 
-## 5. Prompt to paste into Emergent (verbatim)
+## 5. Prompt for any AI builder (paste verbatim)
 > Read `memory/DESIGN.md` and apply it to every screen under `frontend/src`.
 > This is a LIGHT whiteboard theme: pure white background, Inter font only,
 > 1px #e5e7eb borders, near-black #111827 text and primary buttons, no gradients,
