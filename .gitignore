@@ -89,3 +89,6 @@ android-sdk/
 credentials.json
 *.key
 .credentials
+
+# keep the template, ignore real env files
+!.env.example

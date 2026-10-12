@@ -163,6 +163,26 @@ operational readiness; labeled AI + demo data; persistence; optimistic concurren
   import (403 viewer, bad etype / on_conflict / row cap, dry run, create, idempotent re-import,
   case-insensitive match, update, error rows, initiative stage, protected key).
 
+## Implemented (2026-10-12) — engagement engine M4: LLM provider, leadership intake, local Docker stack
+- `backend/providers/llm.py`: one provider interface (`complete_json` with a JSON schema, `complete_text`).
+  `AnthropicLLM` uses the owner's key through the official SDK with schema-constrained output (GA
+  `output_config`, with a prompt-and-parse fallback for older SDKs); refusals and truncation surface as typed
+  errors, never as silent empty drafts. `FakeLLM` is a deterministic stand-in (tests, demo instances).
+  Selection by `BOTS_LLM_PROVIDER` / `ANTHROPIC_API_KEY` / `BOTS_LLM_MODEL`. The vendor LLM SDK is gone.
+- `ai.py` on the provider: `/ai/status` (provider + model), `/ai/suggest` (same AI_DRAFT envelope, now with
+  `model` and `prompt_version`), new `POST /ai/extract-intake`: transcript text (≤60k chars) → draft rows
+  (name, kind, area, raised_by, process, frequency, hours, people, urgency, impact, verbatim evidence quote,
+  systems only from the inventory). Nothing is saved; the client imports the rows it keeps (`source: transcript`).
+- `pages/Intake.jsx` (nav "Leadership Intake"): items grouped by who raised them, kind/area filters, hours per
+  month at stake (hours × occurrences × people), verdict column (final pill, dashed draft, or pending), form
+  from the manifest (`CreateDialog` with `keys`/`extra`/`title`), and `components/TranscriptDialog.jsx`
+  (paste or .txt → extract → tick rows → import → report).
+- Local stack: `docker-compose.yml` (mongo + API + nginx-served frontend proxying `/api`), `backend/Dockerfile`,
+  `frontend/Dockerfile`, `.env.example`, `scripts/test_local.sh`. Written here without a Docker daemon; first
+  run is the owner's. Attachments still depend on the hosted storage integration (M8).
+- Tests: `test_flagship.py::TestAI` (status, suggest envelope, bad kind, viewer 403, short text 400, extraction
+  shape + importability); skips unless the server has a provider (`BOTS_LLM_PROVIDER=fake` for CI).
+
 ## Backlog / Next Stage (deferred per MVP scope)
 - P1: richer playbook editor; initiative workstreams per company; invitations/revocation UI;
   per-request membership caching (N+1); split server.py into routers.

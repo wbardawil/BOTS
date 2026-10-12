@@ -20,6 +20,7 @@ import SettingsPage from "@/pages/Settings";
 import Dashboard from "@/pages/Dashboard";
 import Inventory from "@/pages/Inventory";
 import TechInventory from "@/pages/TechInventory";
+import Intake from "@/pages/Intake";
 import Pipeline from "@/pages/Pipeline";
 
 export default function Shell() {
@@ -35,6 +36,7 @@ export default function Shell() {
     if (active === "dashboard") return <Dashboard />;
     if (active === "inventory") return <Inventory />;
     if (active === "tech") return <TechInventory />;
+    if (active === "intake") return <Intake />;
     if (active === "pipeline") return <Pipeline />;
     if (active === "framework") return <FrameworkCanvas />;
     if (active === "operating_map") return <OperatingMap />;

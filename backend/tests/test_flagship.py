@@ -205,3 +205,63 @@ class TestImport:
         rows = [{"name": f"Sneaky {RUN}", "intake_kind": "initiative", "feasibility_class": "buy"}]
         d = _import(editor_h, "initiative", rows).json()
         assert d["counts"]["errors"] == 1 and d["errors"][0]["field"] == "feasibility_class"
+
+
+# ---- M4: AI provider (status, suggest envelope, transcript extraction) -------------------------
+# These expect the server to run with BOTS_LLM_PROVIDER=fake (or a real key); otherwise they skip.
+@pytest.fixture(scope="module")
+def ai_enabled(editor_h):
+    r = requests.get(f"{API}/ai/status", headers=editor_h, timeout=T)
+    assert r.status_code == 200, r.text
+    if not r.json().get("enabled"):
+        pytest.skip("No AI provider on the server (set BOTS_LLM_PROVIDER=fake)")
+    return r.json()
+
+
+class TestAI:
+    TRANSCRIPT = ("CEO: Cada mes perdemos una semana con el archivo de comisiones. Se exporta del CRM y se arma en Excel por 3 personas, unas 32 horas. "
+                  "COO: Queremos lanzar un portal de clientes para que vean sus pedidos sin llamar a soporte. "
+                  "CFO: El cierre contable tiene errores porque la conciliacion es manual y tarda dias.")
+
+    def test_status_shape(self, ai_enabled):
+        assert ai_enabled["provider"] in ("fake", "anthropic")
+        assert ai_enabled["model"]
+
+    def test_suggest_envelope(self, editor_h, ai_enabled):
+        r = requests.post(f"{API}/ai/suggest", json={"organization_id": ORG, "kind": "prerequisites", "context": "Initiative: automate commissions"}, headers=editor_h, timeout=120)
+        assert r.status_code == 200, r.text
+        d = r.json()
+        assert d["label"] == "AI_DRAFT" and d["accepted"] is False and d["kind"] == "prerequisites"
+        assert isinstance(d["content"], str) and d["content"].strip()
+        assert d["model"] and d["prompt_version"]
+
+    def test_suggest_bad_kind(self, editor_h, ai_enabled):
+        r = requests.post(f"{API}/ai/suggest", json={"organization_id": ORG, "kind": "poem"}, headers=editor_h, timeout=T)
+        assert r.status_code == 400
+
+    def test_extract_requires_write(self, viewer_h, ai_enabled):
+        r = requests.post(f"{API}/ai/extract-intake", json={"organization_id": ORG, "text": self.TRANSCRIPT}, headers=viewer_h, timeout=T)
+        assert r.status_code == 403
+
+    def test_extract_short_text(self, editor_h, ai_enabled):
+        r = requests.post(f"{API}/ai/extract-intake", json={"organization_id": ORG, "text": "hola"}, headers=editor_h, timeout=T)
+        assert r.status_code == 400
+
+    def test_extract_items(self, editor_h, ai_enabled):
+        r = requests.post(f"{API}/ai/extract-intake", json={"organization_id": ORG, "text": self.TRANSCRIPT, "raised_by": "Ana Ruiz", "raised_by_role": "CEO"}, headers=editor_h, timeout=180)
+        assert r.status_code == 200, r.text
+        d = r.json()
+        assert d["label"] == "AI_DRAFT" and d["kind"] == "intake_extract" and d["accepted"] is False
+        items = d["content"]["items"]
+        assert 1 <= len(items) <= 60
+        for it in items:
+            assert it["name"] and it["intake_kind"] in ("initiative", "pain_point", "slow_task")
+            assert it.get("raised_by")  # default applied when the model left it empty
+            for k in ("area", "frequency", "urgency", "impact"):
+                assert it.get(k, "x") != ""  # empties are stripped, never sent to the importer
+        # the draft is importable as-is (nothing was saved by the extraction)
+        before = len(_list(editor_h, "initiative"))
+        assert len(_list(editor_h, "initiative")) == before
+        rows = [{**it, "name": f"{it['name'][:60]} {RUN}"} for it in items[:2]]
+        imp = _import(editor_h, "initiative", rows, source="transcript").json()
+        assert imp["counts"]["created"] == len(rows), imp

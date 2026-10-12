@@ -10,16 +10,17 @@ import { toast } from "sonner";
 /** Record types that can be created from the UI: every etype with at least one `create` field in the manifest. */
 export const creatableTypes = (etypes) => etypes.filter((t) => fieldsFor(t, (r) => r.create).length > 0);
 
-export function CreateDialog({ open, setOpen, etype, orgId, onDone }) {
+export function CreateDialog({ open, setOpen, etype, orgId, onDone, keys, extra, title }) {
   const [data, setData] = useState({});
   const [busy, setBusy] = useState(false);
-  const rows = fieldsFor(etype, (r) => r.create);
+  const all = fieldsFor(etype);
+  const rows = keys ? keys.map((k) => all.find((r) => r.key === k)).filter(Boolean) : all.filter((r) => r.create);
 
   const submit = async () => {
     const missing = rows.filter((r) => r.required && !data[r.key]);
     if (missing.length) { toast.error(`${missing.map((r) => r.en).join(", ")} required`); return; }
     setBusy(true);
-    const payload = { ...data };
+    const payload = { ...(extra || {}), ...data };
     NUMERIC_FIELDS.forEach((k) => { if (payload[k] != null && payload[k] !== "") { const n = Number(payload[k]); if (!Number.isNaN(n)) payload[k] = n; } });
     Object.keys(payload).forEach((k) => { if (payload[k] === "") delete payload[k]; });
     try {
@@ -33,7 +34,7 @@ export function CreateDialog({ open, setOpen, etype, orgId, onDone }) {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogContent className="max-w-lg">
-        <DialogHeader><DialogTitle>New {ETYPE[etype]?.label}</DialogTitle></DialogHeader>
+        <DialogHeader><DialogTitle>{title || `New ${ETYPE[etype]?.label}`}</DialogTitle></DialogHeader>
         <div className="max-h-[60vh] overflow-y-auto pr-1">
           <FieldGrid etype={etype} rows={rows} data={{}} form={data} setForm={setData} edit testPrefix="field" />
         </div>

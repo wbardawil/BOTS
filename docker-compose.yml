@@ -1,0 +1,43 @@
+# Local stack: MongoDB + FastAPI backend + built frontend behind nginx (proxies /api to the backend).
+#   cp .env.example .env   (edit ADMIN_EMAIL / ADMIN_PASSWORD at least)
+#   docker compose up --build
+#   open http://localhost:3000   (API on http://localhost:8001)
+services:
+  mongo:
+    image: mongo:7
+    restart: unless-stopped
+    volumes:
+      - mongo-data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.runCommand({ ping: 1 }).ok"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  backend:
+    build: ./backend
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      MONGO_URL: mongodb://mongo:27017
+      DB_NAME: ${DB_NAME:-bots}
+    ports:
+      - "8001:8001"
+    depends_on:
+      mongo:
+        condition: service_healthy
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        # Empty on purpose: the bundle calls /api relative to its own origin and nginx proxies it to the backend.
+        REACT_APP_BACKEND_URL: ""
+    restart: unless-stopped
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
+
+volumes:
+  mongo-data:
