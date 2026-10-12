@@ -46,6 +46,7 @@ export const ETYPE = {
 export const MAIN_TABS = [
   { id: "dashboard", label: "Dashboards", icon: LayoutGrid },
   { id: "inventory", label: "Inventory", icon: FolderSearch },
+  { id: "tech", label: "Technology Inventory", icon: Cpu },
   { id: "pipeline", label: "Pipeline", icon: Columns3 },
   { id: "framework", label: "Framework Canvas", icon: LayoutDashboard },
   { id: "operating_map", label: "Operating Map", icon: GitBranch },

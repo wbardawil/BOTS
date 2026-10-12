@@ -22,6 +22,9 @@ import access
 from access import require_read, require_write, accessible_org_ids, accessible_workspace_ids, org_role
 import seed as seed_module
 import fields as field_rules
+from stages import DEFAULT_STAGES, STAGES, PIPELINE_ETYPES, get_org_stages, _stage_maps, _owner_of, _blocked_reason
+from auditlog import audit
+from routes_engagement import engagement_router
 import storage
 from email_util import send_email
 
@@ -44,12 +47,7 @@ ENTITY_TYPES = {
 }
 
 
-async def audit(user, org_id, action, etype, eid, summary=""):
-    await db.audit.insert_one({
-        "id": secrets.token_hex(10), "organization_id": org_id, "user_id": user["id"],
-        "user_name": user.get("name"), "action": action, "entity_type": etype,
-        "entity_id": eid, "summary": summary, "at": now_iso(),
-    })
+# audit() comes from auditlog.py
 
 
 # ---------------- Structure: workspaces / orgs / portfolios ----------------
@@ -597,43 +595,7 @@ async def reseed(user: dict = Depends(get_current_user)):
     return {"ok": True}
 
 
-# ---------------- Lifecycle pipeline ----------------
-DEFAULT_STAGES = [
-    {"key": "discovery", "label": "Discovery", "gated": False},
-    {"key": "assessing", "label": "Assessing", "gated": False},
-    {"key": "alternatives", "label": "Alternatives", "gated": False},
-    {"key": "offer", "label": "Offer", "gated": False},
-    {"key": "approved", "label": "Approved", "gated": True},
-    {"key": "in_progress", "label": "In progress", "gated": True},
-    {"key": "live", "label": "Live", "gated": True},
-    {"key": "realized", "label": "Realized", "gated": True},
-]
-STAGES = DEFAULT_STAGES  # global default; companies may customize
-PIPELINE_ETYPES = {"initiative", "opportunity"}
-
-
-async def get_org_stages(org_id):
-    org = clean(await db.organizations.find_one({"id": org_id}))
-    st = (org or {}).get("pipeline_stages")
-    return st or DEFAULT_STAGES
-
-
-def _stage_maps(stages):
-    keys = [s["key"] for s in stages]
-    labels = {s["key"]: s["label"] for s in stages}
-    gated = {s["key"] for s in stages if s.get("gated")}
-    return keys, labels, gated
-
-
-def _owner_of(data):
-    return data.get("owner") or data.get("human_owner") or data.get("assignee")
-
-
-def _blocked_reason(data, stage, labels, gated):
-    """Clear reason a stage move is blocked, or None if allowed."""
-    if stage in gated and not _owner_of(data):
-        return f"Assign an owner before moving to “{labels[stage]}”. Gated stages need an accountable owner."
-    return None
+# Lifecycle pipeline helpers live in stages.py
 
 
 class OrgStagesIn(BaseModel):
@@ -1236,6 +1198,7 @@ async def framework_meta(user: dict = Depends(get_current_user)):
 
 app.include_router(auth_router)
 app.include_router(ai_router)
+app.include_router(engagement_router)
 app.include_router(api)
 
 app.add_middleware(

@@ -144,6 +144,25 @@ operational readiness; labeled AI + demo data; persistence; optimistic concurren
 - Seed v3: seven Northwind systems (one per kind, with API/MCP facts) and one classified pain point
   (`init-nw-intake-1`) so the Tech Inventory, Intake and Feasibility screens have real content.
 
+## Implemented (2026-10-12) — engagement engine M3: technology inventory, CSV import/export
+- `pages/TechInventory.jsx` (nav "Technology Inventory"): every `system` record with API / MCP / verified
+  facts. Table mode groups by kind with kind/area/API/MCP/verified filters, bulk area and owner; map mode
+  is the kind × area matrix of chips (stripe = area hue, outlined tag = API, ◆ = MCP, ✓ = verified), sized
+  to fit the viewport so it exports as one image later (M7).
+- CSV in and out: `lib/csv.js` (RFC 4180 quoting, BOM, `;` detection for es-MX Excel, replacement-character
+  warning) and `components/ImportDialog.jsx` (file → column mapping pre-matched to manifest keys or labels
+  in either language → dry run → commit, with a per-row report). Export writes the manifest's csv keys.
+- `POST /api/organizations/{id}/import` (`routes_engagement.py`): system and initiative rows, max 500,
+  validated with `fields.py`, numbers coerced ("2,400" → 2400), de-duplicated by `import_key` or
+  case-insensitive name, `on_conflict` skip or update (update bumps `version`), initiatives get the
+  company's first stage. Report: `{created, updated, skipped[{row,name,reason}], errors[{row,field,reason}], counts}`.
+- Shared table primitives moved to `components/tables.jsx` (Inventory and Tech Inventory use the same
+  `Th`, `Sel`, `BulkMenu`, `BulkOwner`). `server.py` lost its stage helpers to `stages.py` and the audit
+  helper to `auditlog.py` so new routers import them without a cycle.
+- `backend/tests/test_flagship.py`: validation (enum, numeric, protected key, legacy keys, stage init) and
+  import (403 viewer, bad etype / on_conflict / row cap, dry run, create, idempotent re-import,
+  case-insensitive match, update, error rows, initiative stage, protected key).
+
 ## Backlog / Next Stage (deferred per MVP scope)
 - P1: richer playbook editor; initiative workstreams per company; invitations/revocation UI;
   per-request membership caching (N+1); split server.py into routers.
