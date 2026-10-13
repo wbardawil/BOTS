@@ -5,7 +5,8 @@
 //
 //   yarn e2e                 run every flow
 //   yarn e2e feasibility     run one flow (name = file name without .cjs)
-//   yarn e2e --build         rebuild frontend/build first (otherwise it is built only when missing)
+//   yarn e2e --build         rebuild frontend/build first (otherwise it is rebuilt only when missing or older than a
+//                            source file: src/, public/, index.html, vite.config.*, .env*, package.json, yarn.lock)
 //
 // Env: BOTS_CHROMIUM = path to a Chromium binary (else Playwright's own download, `npx playwright install chromium`).
 // Output: e2e/out/<flow>/ holds screenshots, exported PNGs and the summary PDF; e2e/out/results.json the verdicts.
@@ -36,10 +37,46 @@ function listFlows() {
   return fs.readdirSync(FLOWS).filter((f) => f.endsWith(".cjs")).sort().map((f) => f.replace(/\.cjs$/, ""));
 }
 
+const ago = (mtimeMs) => {
+  const s = Math.max(0, Math.round((Date.now() - mtimeMs) / 1000));
+  return s < 120 ? `${s} s` : s < 7200 ? `${Math.round(s / 60)} min` : `${(s / 3600).toFixed(1)} h`;
+};
+
+/**
+ * Newest file among everything the bundle is built from: src/ and public/ recursively, index.html, vite.config.*,
+ * the .env files loadEnv reads, package.json, yarn.lock and the config files the build resolves. A stale build
+ * is one older than any of these.
+ */
+function newestSource() {
+  const top = fs.readdirSync(FRONTEND).filter((f) => f === "src" || f === "public" || f === "index.html" || f === "package.json"
+    || f === "yarn.lock" || f === "jsconfig.json" || f === "components.json" || /^vite\.config\./.test(f) || /^\.env(\..+)?$/.test(f));
+  let newest = { mtimeMs: 0, file: null };
+  const visit = (p) => {
+    let st;
+    try { st = fs.statSync(p); } catch { return; }
+    if (st.isDirectory()) { for (const f of fs.readdirSync(p)) visit(path.join(p, f)); return; }
+    if (st.mtimeMs > newest.mtimeMs) newest = { mtimeMs: st.mtimeMs, file: path.relative(FRONTEND, p) };
+  };
+  for (const f of top) visit(path.join(FRONTEND, f));
+  return newest;
+}
+
+/**
+ * Reuse frontend/build only when it is newer than every source file it was built from; otherwise rebuild, so editing
+ * src/ and running `yarn e2e` tests the edit and not the previous bundle. `--build` forces a rebuild.
+ */
 function ensureBuild(force) {
   if (!fs.existsSync(VITE)) throw new Error(`vite not installed at ${VITE}; run "yarn install" in ${FRONTEND} first`);
-  if (!force && fs.existsSync(path.join(BUILD, "index.html"))) { log(`using existing build at ${BUILD}`); return; }
-  log(`building the frontend into ${BUILD}`);
+  const index = path.join(BUILD, "index.html");
+  let reason = force ? "--build given" : null;
+  if (!reason && !fs.existsSync(index)) reason = "no build yet";
+  if (!reason) {
+    const built = fs.statSync(index).mtimeMs;
+    const src = newestSource();
+    if (src.mtimeMs > built) reason = `${src.file} changed ${ago(src.mtimeMs)} ago, after the build (${ago(built)} ago)`;
+    else { log(`using existing build at ${BUILD} (built ${ago(built)} ago, newer than every source file)`); return; }
+  }
+  log(`building the frontend into ${BUILD}: ${reason}`);
   const r = spawnSync(process.execPath, [VITE, "build"], { cwd: FRONTEND, stdio: "inherit",
     env: { ...process.env, DISABLE_EMERGENT_OVERLAY: "true", REACT_APP_BACKEND_URL: BASE } });
   if (r.status !== 0) throw new Error(`vite build exited with ${r.status}`);
