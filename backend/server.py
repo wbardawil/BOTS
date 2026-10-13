@@ -25,7 +25,7 @@ import fields as field_rules
 from stages import DEFAULT_STAGES, STAGES, PIPELINE_ETYPES, get_org_stages, _stage_maps, _owner_of, _blocked_reason
 from auditlog import audit
 from routes_engagement import engagement_router
-from routes_feasibility import feasibility_router
+from routes_feasibility import feasibility_router, reap_stale_jobs
 import storage
 from email_util import send_email
 
@@ -1229,6 +1229,7 @@ async def startup():
     except Exception as e:
         logger.error(f"Storage init failed: {e}")
     await seed_module.seed_demo()
+    logger.info(f"Feasibility jobs interrupted by a restart: {await reap_stale_jobs()}")
 
 
 @app.on_event("shutdown")

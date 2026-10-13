@@ -79,6 +79,19 @@ export default function Feasibility() {
       poll(res.job_id);
     } catch (e) { toast.error(apiErr(e.response?.data?.detail)); }
   };
+  // On mount and when the company changes: if the newest job is still queued/running (started in another tab, or
+  // before a reload), adopt it and resume polling instead of showing an idle page while drafts keep landing.
+  useEffect(() => {
+    clearInterval(pollRef.current);
+    setJob(null);
+    if (!orgId) return undefined;
+    let alive = true;
+    api.get(`/organizations/${orgId}/feasibility/jobs`).then((jobs) => {
+      const latest = Array.isArray(jobs) ? jobs[0] : null;
+      if (alive && latest && (latest.status === "queued" || latest.status === "running")) { setJob(latest); poll(latest.id); }
+    }).catch(() => {});
+    return () => { alive = false; };
+  }, [orgId]); // eslint-disable-line react-hooks/exhaustive-deps
   const running = job && (job.status === "queued" || job.status === "running");
 
   // ---- review by drag ------------------------------------------------------------------------

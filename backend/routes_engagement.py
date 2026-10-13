@@ -1,6 +1,6 @@
 """Engagement routes: bulk import of inventory and intake rows (CSV mapped on the client)."""
 import re
-from typing import List
+from typing import List, Optional
 
 from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel, Field
@@ -25,6 +25,7 @@ class ImportIn(BaseModel):
     dry_run: bool = False
     on_conflict: str = "skip"  # skip | update
     source: str = "csv_import"  # csv_import | transcript | wizard
+    proposed: Optional[int] = Field(default=None, ge=0)  # rows the AI draft proposed (transcript); audited, never stored
 
 
 def _coerce(data: dict) -> dict:
@@ -109,9 +110,11 @@ async def import_rows(org_id: str, body: ImportIn, user: dict = Depends(get_curr
             created.append(doc["id"])
         else:
             created.append(f"row-{i}")
-    if not body.dry_run and (created or updated):
+    if not body.dry_run and (created or updated or body.proposed is not None):
+        # with `proposed`, the row is written even when nothing was created: proposed vs created is the measure
         await audit(user, org_id, "import", body.etype, org_id,
-                    f"{len(created)} created, {len(updated)} updated, {len(skipped)} skipped, {len(errors)} errors")
+                    (f"proposed {body.proposed}, " if body.proposed is not None else "")
+                    + f"{len(created)} created, {len(updated)} updated, {len(skipped)} skipped, {len(errors)} errors")
     return {"etype": body.etype, "dry_run": body.dry_run, "created": created, "updated": updated,
             "skipped": skipped, "errors": errors,
             "counts": {"created": len(created), "updated": len(updated), "skipped": len(skipped), "errors": len(errors)}}

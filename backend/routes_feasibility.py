@@ -6,6 +6,7 @@ gets a 409 instead of a silent overwrite.
 """
 import asyncio
 import secrets
+from datetime import datetime, timedelta, timezone
 from typing import List, Optional
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
@@ -23,6 +24,8 @@ feasibility_router = APIRouter(prefix="/api")
 CLASSES = ["current_stack", "configure", "build", "buy", "not_tech"]
 PROMPT_VERSION = "feas-v1"
 MAX_PARALLEL = 3
+ACTIVE_JOB_MINUTES = 15  # a queued/running job younger than this blocks a second run for the same company
+STALE_JOB_MINUTES = 30  # at startup, a queued/running job older than this died with the previous process
 
 _S = {"type": "string"}
 _ARR = {"type": "array", "items": _S}
@@ -115,6 +118,39 @@ def _normalise(out: dict, known: List[str]) -> dict:
 
 
 # ---- batch run ------------------------------------------------------------------------------------
+def _started(job: dict) -> Optional[datetime]:
+    """When the job started (or was created, while still queued); None when the stamp is missing or malformed."""
+    raw = job.get("started_at") or job.get("created_at")
+    try:
+        t = datetime.fromisoformat(str(raw))
+    except (TypeError, ValueError):
+        return None
+    return t if t.tzinfo else t.replace(tzinfo=timezone.utc)
+
+
+async def _active_job(org_id: str) -> Optional[dict]:
+    """A queued/running feasibility job for the org that is still young enough to be alive."""
+    cutoff = datetime.now(timezone.utc) - timedelta(minutes=ACTIVE_JOB_MINUTES)
+    cur = db.jobs.find({"organization_id": org_id, "kind": "feasibility", "status": {"$in": ["queued", "running"]}}, {"items": 0})
+    for j in await cur.sort("created_at", -1).to_list(20):
+        t = _started(j)
+        if t and t >= cutoff:
+            return clean(j)
+    return None
+
+
+async def reap_stale_jobs() -> int:
+    """Startup sweep: the background task of a queued/running job dies with its process, so a job still in that
+    state after STALE_JOB_MINUTES will never finish. Mark it failed so the UI stops waiting and new runs are not
+    blocked. Returns how many jobs were marked."""
+    cutoff = (datetime.now(timezone.utc) - timedelta(minutes=STALE_JOB_MINUTES)).isoformat()
+    res = await db.jobs.update_many(
+        {"kind": "feasibility", "status": {"$in": ["queued", "running"]},
+         "$or": [{"started_at": {"$lt": cutoff}}, {"started_at": None, "created_at": {"$lt": cutoff}}]},
+        {"$set": {"status": "failed", "finished_at": now_iso(), "error": "interrupted by restart"}})
+    return int(getattr(res, "modified_count", 0) or 0)
+
+
 class RunIn(BaseModel):
     ids: Optional[List[str]] = None
     force: bool = False
@@ -129,6 +165,8 @@ async def run_feasibility(org_id: str, body: RunIn, background: BackgroundTasks,
     org = clean(await db.organizations.find_one({"id": org_id}))
     if not org:
         raise HTTPException(404, "Organization not found")
+    if await _active_job(org_id):
+        raise HTTPException(409, "A classification run is already in progress for this company")
     q = {"organization_id": org_id, "etype": "initiative", "archived": False, "data.intake_kind": {"$exists": True, "$ne": ""}}
     if body.ids:
         q["id"] = {"$in": body.ids[:500]}
