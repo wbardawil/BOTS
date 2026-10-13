@@ -1,0 +1,4 @@
+Nombre;Tipo;Proveedor;Área;API disponible;Costo
+Salesforce;saas;Salesforce;sales;yes;2400
+HubSpot;saas;HubSpot;sales;yes;120
+Almacén de datos;database;Postgres;data;unknown;
