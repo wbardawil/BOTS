@@ -110,17 +110,20 @@ INTAKE_ITEM_SCHEMA = {
         "urgency": {"type": "string", "enum": ["low", "medium", "high", ""]},
         "impact": {"type": "string", "enum": ["low", "medium", "high", ""]},
         "evidence_quote": _S,
+        "duplicate_of": _S,  # exact name of an existing record or an earlier row it restates; "" when none
     },
     "required": ["name", "intake_kind", "area", "raised_by", "raised_by_role", "business_problem", "intended_outcome",
                  "current_process", "frequency", "time_per_occurrence_hours", "people_involved", "systems_involved",
-                 "urgency", "impact", "evidence_quote"],
+                 "urgency", "impact", "evidence_quote", "duplicate_of"],
     "additionalProperties": False,
 }
 INTAKE_SCHEMA = {"type": "object", "title": "IntakeExtract",
                  "properties": {"items": {"type": "array", "items": INTAKE_ITEM_SCHEMA}},
                  "required": ["items"], "additionalProperties": False}
 
-INTAKE_PROMPT_VERSION = "intake-v1"
+INTAKE_PROMPT_VERSION = "intake-v2"  # v2: duplicate_of against the org's existing intake records
+MAX_EXISTING_NAMES = 200
+EXTRACT_MAX_TOKENS = 16384  # a long leadership transcript (60 rows with quotes) must finish in one answer
 
 
 def _intake_system(lang: str) -> str:
@@ -134,6 +137,8 @@ def _intake_system(lang: str) -> str:
         "- evidence_quote is a verbatim sentence from the text that supports the row.\n"
         "- area is one of the listed keys, or empty when unclear.\n"
         "- systems_involved only uses names from the inventory list given; otherwise leave it empty.\n"
+        "- duplicate_of: when the item restates an existing record or an earlier row in this transcript, put that record's "
+        "exact name (or the earlier row's name); otherwise empty.\n"
         "- Numbers (hours per occurrence, people involved) only when stated or clearly implied.\n"
         f"- name is short (max 80 characters) and written in {lang}; business_problem summarises the item in {lang}.\n"
         f"- At most {MAX_ITEMS} rows. This is a draft a human will review."
@@ -157,24 +162,37 @@ async def extract_intake(body: ExtractIn, user: dict = Depends(get_current_user)
     systems = [clean(s) for s in await db.entities.find(
         {"organization_id": body.organization_id, "etype": "system", "archived": False}, {"data.name": 1}).to_list(500)]
     known = sorted({(s.get("data") or {}).get("name", "") for s in systems} - {""})
+    existing = await _existing_intake_names(body.organization_id)
     lang = _lang(org)
     user_msg = (f"Company: {org['name']}\n"
                 f"Known systems (inventory): {', '.join(known) if known else '(none recorded yet)'}\n"
+                f"Existing intake records (name only): {', '.join(existing) if existing else '(none recorded yet)'}\n"
                 f"Areas: {'; '.join(f'{k} = {AREA_LABELS.get(k, k)}' for k in AREA_KEYS)}\n"
                 f"Default raised_by: {body.raised_by or '(unknown)'} · role: {body.raised_by_role or '(unknown)'}\n\n"
                 f"Transcript:\n<<<\n{text}\n>>>")
     try:
-        out = await llm.complete_json(system=_intake_system(lang), user=user_msg, schema=INTAKE_SCHEMA, max_tokens=8192)
+        out = await llm.complete_json(system=_intake_system(lang), user=user_msg, schema=INTAKE_SCHEMA, max_tokens=EXTRACT_MAX_TOKENS)
     except LLMError as e:
         raise _http(e)
-    items = _clean_items(out.get("items") or [], known, body.raised_by, body.raised_by_role)
+    items = _clean_items(out.get("items") or [], known, body.raised_by, body.raised_by_role, existing)
     return envelope("intake_extract", {"items": items}, model=llm.model, prompt_version=INTAKE_PROMPT_VERSION,
                     assumptions=f"Drafted from the pasted text only ({len(text):,} characters). Every row needs a human decision before it becomes a record.",
                     counts={"items": len(items), "chars": len(text)})
 
 
-def _clean_items(raw: list, known: List[str], raised_by: Optional[str], raised_by_role: Optional[str]) -> list:
+async def _existing_intake_names(org_id: str) -> List[str]:
+    """Names of the org's live intake records (alphabetical, capped) so the model can flag rows that restate one."""
+    docs = await db.entities.find(
+        {"organization_id": org_id, "etype": "initiative", "archived": False, "data.intake_kind": {"$exists": True, "$ne": ""}},
+        {"data.name": 1}).sort("data.name", 1).to_list(MAX_EXISTING_NAMES)
+    return sorted({str((d.get("data") or {}).get("name") or "").strip() for d in docs} - {""})
+
+
+def _clean_items(raw: list, known: List[str], raised_by: Optional[str], raised_by_role: Optional[str],
+                 existing: Optional[List[str]] = None) -> list:
     known_map = {k.lower(): k for k in known}
+    # duplicate_of may only point at an existing record or at an earlier kept row (added as rows are kept)
+    dup_map = {n.lower(): n for n in (existing or [])}
     out = []
     for it in raw[:MAX_ITEMS]:
         if not isinstance(it, dict):
@@ -199,5 +217,9 @@ def _clean_items(raw: list, known: List[str], raised_by: Optional[str], raised_b
             row["raised_by"] = raised_by
         if raised_by_role and not row.get("raised_by_role"):
             row["raised_by_role"] = raised_by_role
+        target = dup_map.get(str(it.get("duplicate_of") or "").strip().lower())
+        if target:
+            row["duplicate_of"] = target
         out.append(row)
+        dup_map.setdefault(name.lower(), name)
     return out

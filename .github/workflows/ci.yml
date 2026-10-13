@@ -1,0 +1,160 @@
+# CI (plan Part 2, item E): the backend's API suites run against a real MongoDB on every push and pull
+# request, for the first time outside Emergent. Three jobs:
+#   api    unit tests for the pure layers, then the API suites against a booted server, then the
+#          collected-count guard (scripts/ci_guard.py) so a skip cannot green-wash the run
+#   web    production build of the frontend; the e2e flows once frontend/e2e/run.cjs exists
+#   docker compose build only (no up)
+# Secrets are throwaway values minted per run and never printed; the LLM provider is the fake.
+name: ci
+
+on:
+  push:
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  api:
+    name: api
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    services:
+      mongo:
+        image: mongo:7
+        ports:
+          - 27017:27017
+        options: >-
+          --health-cmd "mongosh --quiet --eval 'db.runCommand({ ping: 1 }).ok'"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      MONGO_URL: mongodb://localhost:27017
+      DB_NAME: bots_ci_${{ github.run_id }}
+      ADMIN_EMAIL: ci-admin@bots-ci.dev
+      ALLOW_DEMO_RESEED: "true"
+      BOTS_LLM_PROVIDER: fake
+      BOTS_TEST_BASE_URL: http://localhost:8001
+      CORS_ORIGINS: http://localhost:3000
+      PYTHONUNBUFFERED: "1"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: backend/requirements.txt
+
+      - name: Install backend dependencies
+        run: pip install -r backend/requirements.txt
+
+      - name: Mint throwaway secrets (per run, masked, never printed)
+        run: |
+          for name in ADMIN_PASSWORD DEMO_USERS_PASSWORD JWT_SECRET WEBHOOK_CRON_SECRET; do
+            value="$(openssl rand -hex 24)"
+            echo "::add-mask::${value}"
+            echo "${name}=${value}" >> "$GITHUB_ENV"
+          done
+
+      - name: Unit tests (pure layers, no server)
+        working-directory: backend
+        run: python -m pytest -q tests/unit
+
+      - name: Start the API
+        working-directory: backend
+        # /api/ai/status answers 401 without a token once the app serves, and uvicorn only serves after the
+        # startup hook (indexes + demo seed) has finished, so a 401 means the seeded server is ready.
+        run: |
+          nohup uvicorn server:app --host 127.0.0.1 --port 8001 > "$RUNNER_TEMP/uvicorn.log" 2>&1 &
+          for i in $(seq 1 90); do
+            code="$(curl -s -o /dev/null -w '%{http_code}' http://localhost:8001/api/ai/status || true)"
+            if [ "$code" = "200" ] || [ "$code" = "401" ]; then
+              echo "API answered ${code} after ${i}s"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "::error::API did not answer within 90 s"
+          cat "$RUNNER_TEMP/uvicorn.log"
+          exit 1
+
+      - name: API tests
+        working-directory: backend
+        # pytest.ini addopts (-n 2 --dist loadscope) apply untouched. tests/unit already ran above; keeping
+        # it out of junit.xml keeps the guard's count an API-only count (the baseline counts API tests).
+        # The attachment round trip is deselected, not skipped: storage.py has only the Emergent-hosted
+        # object store, which needs EMERGENT_LLM_KEY. CI has no such secret (fork PRs have none, and a real
+        # key would write to the real store), so the upload answers 502. A deselected test never reaches
+        # junit.xml, so the guard's zero-skip rule stays honest and backend/tests/.collected_baseline
+        # carries the carve-out (125, not 126). Drop the --deselect and restore 126 once storage gets a
+        # local backend that is selected when the key is unset (wave 2).
+        run: >-
+          python -m pytest -q tests --ignore=tests/unit --junitxml=../junit.xml
+          --deselect tests/test_phase1_lifecycle.py::TestAttachments::test_upload_list_download_delete
+
+      - name: Collected-count guard
+        run: python scripts/ci_guard.py junit.xml backend/tests/.collected_baseline
+
+      - name: Keep the run's evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: api-run-${{ github.run_id }}
+          path: |
+            junit.xml
+            ${{ runner.temp }}/uvicorn.log
+          if-no-files-found: ignore
+
+  web:
+    name: web
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: yarn
+          cache-dependency-path: frontend/yarn.lock
+
+      - name: Install
+        run: yarn install --frozen-lockfile
+
+      - name: Build
+        # Empty backend URL on purpose: the bundle calls /api on its own origin (same as the Docker image).
+        env:
+          DISABLE_EMERGENT_OVERLAY: "true"
+          REACT_APP_BACKEND_URL: ""
+        run: yarn build
+
+      - name: End-to-end flows (once frontend/e2e/run.cjs exists)
+        run: |
+          if [ -f e2e/run.cjs ]; then
+            npx playwright install chromium --with-deps
+            yarn e2e
+          else
+            echo "frontend/e2e/run.cjs is not in this checkout yet; nothing to run"
+          fi
+
+  docker:
+    name: docker
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Provide the env file compose declares
+        # docker-compose.yml declares env_file: .env for the backend and Compose refuses to load without
+        # it, even for build. The example holds placeholders only; no real credential is involved.
+        run: |
+          [ -f .env ] || cp .env.example .env
+
+      - name: Build the images
+        run: docker compose build

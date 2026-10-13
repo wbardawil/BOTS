@@ -63,7 +63,8 @@ class AnthropicLLM(BaseLLM):
 
     def __init__(self, api_key: str, model: str = DEFAULT_MODEL, max_concurrency: int = 3):
         from anthropic import AsyncAnthropic  # lazy: optional dependency
-        self._client = AsyncAnthropic(api_key=api_key, max_retries=2, timeout=180.0)
+        # 600 s: a 16k-token extraction over a long transcript must finish in one call rather than turn into a 502
+        self._client = AsyncAnthropic(api_key=api_key, max_retries=2, timeout=600.0)
         self.model = model
         self._sem = asyncio.Semaphore(max(1, max_concurrency))
         self._structured = "output_config" in inspect.signature(self._client.messages.create).parameters
@@ -126,8 +127,18 @@ class FakeLLM(BaseLLM):
         task = user.rsplit("Task:", 1)[-1].strip()[:160]
         return f"[fake provider] Draft for: {task}\n- Assumption: based only on the supplied context.\n- Next step: review with the owner."
 
+    @staticmethod
+    def _existing_names(user: str) -> dict:
+        """The 'Existing intake records (name only): a, b' line of the prompt header -> {lower: exact}."""
+        head = user.split("<<<", 1)[0]
+        m = re.search(r"^Existing intake records \(name only\): (.*)$", head, re.M)
+        if not m or m.group(1).strip().startswith("("):
+            return {}
+        return {n.strip().lower(): n.strip() for n in m.group(1).split(", ") if n.strip()}
+
     def _intake_items(self, user: str) -> list:
         body = user.split("<<<", 1)[-1].split(">>>", 1)[0] if "<<<" in user else user
+        existing = self._existing_names(user)
         # one item per paragraph or speaker turn ("CEO: ..."), never per sentence
         chunks = [c.strip() for c in re.split(r"\n\s*\n|\n(?=[A-ZÁÉÍÓÚÑ][\w .]{0,30}:)|(?<=[.!?])\s+(?=[A-ZÁÉÍÓÚÑ][\w .]{0,30}:)", body) if len(c.strip()) >= 40]
         items = []
@@ -138,6 +149,7 @@ class FakeLLM(BaseLLM):
             freq = "monthly" if re.search(r"\b(mes|mensual|month)", c, re.I) else "weekly" if re.search(r"\b(semana|weekly|week)", c, re.I) else "daily" if re.search(r"\b(diario|daily|every day|cada día)", c, re.I) else ""
             name = re.sub(r"^[A-Za-zÁÉÍÓÚÑ ]{2,20}:\s*", "", c).split(".")[0][:80]
             items.append({"name": name, "intake_kind": kind, "area": "", "raised_by": "", "raised_by_role": "",
+                          "duplicate_of": existing.get(name.strip().lower(), ""),
                           "business_problem": c[:300], "intended_outcome": "", "current_process": "",
                           "frequency": freq, "time_per_occurrence_hours": float(hours.group(1).replace(",", ".")) if hours else 0,
                           "people_involved": int(people.group(1)) if people else 0, "systems_involved": [],

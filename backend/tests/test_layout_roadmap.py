@@ -27,7 +27,7 @@ def _login(email, password):
 
 @pytest.fixture(scope="module")
 def tokens():
-    return {k: _login(*v) for k, v in CREDS.items()}
+    return {k: _login(v[0], v[1]) for k, v in CREDS.items()}  # CREDS rows carry a third, informational element
 
 
 def H(t): return {"Authorization": f"Bearer {t}"}

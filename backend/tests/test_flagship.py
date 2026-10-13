@@ -283,6 +283,18 @@ def _wait_job(h, job_id, timeout=90):
     raise AssertionError("job did not finish in time")
 
 
+def _run(h, body, tries=60):
+    """POST feasibility/run. The in-progress guard is per company and every class here shares ORG, so under xdist a
+    409 can come from another worker's job: wait for it to drain and retry. The guard itself is asserted in
+    TestExtractionHardening, which calls the endpoint directly."""
+    for _ in range(tries):
+        r = requests.post(f"{API}/organizations/{ORG}/feasibility/run", json=body, headers=h, timeout=T)
+        if r.status_code != 409:
+            return r
+        time.sleep(0.5)
+    return r
+
+
 def _get(h, eid):
     r = requests.get(f"{API}/entities/{eid}", headers=h, timeout=T)
     assert r.status_code == 200, r.text
@@ -309,7 +321,7 @@ class TestFeasibility:
 
     def test_run_creates_drafts(self, editor_h, feas_items):
         before = {eid: _get(editor_h, eid)["version"] for eid in feas_items}
-        r = requests.post(f"{API}/organizations/{ORG}/feasibility/run", json={"ids": feas_items}, headers=editor_h, timeout=T)
+        r = _run(editor_h, {"ids": feas_items})
         assert r.status_code == 200, r.text
         d = r.json()
         assert d["queued"] == 3 and d["job_id"]
@@ -329,9 +341,9 @@ class TestFeasibility:
         assert any(j["id"] == d["job_id"] for j in jobs)
 
     def test_rerun_skips_unless_forced(self, editor_h, feas_items):
-        r = requests.post(f"{API}/organizations/{ORG}/feasibility/run", json={"ids": feas_items}, headers=editor_h, timeout=T).json()
+        r = _run(editor_h, {"ids": feas_items}).json()
         assert r["job_id"] is None and r["skipped"] == 3
-        r = requests.post(f"{API}/organizations/{ORG}/feasibility/run", json={"ids": feas_items, "force": True}, headers=editor_h, timeout=T).json()
+        r = _run(editor_h, {"ids": feas_items, "force": True}).json()
         assert r["queued"] == 3
         assert _wait_job(editor_h, r["job_id"])["ok"] == 3
 
@@ -379,7 +391,7 @@ class TestFeasibility:
         assert "feasibility_draft_class" not in u["data"]  # leaves the board; draft kept on the record for reference
         assert u["data"]["feasibility"]["draft"]["content"]["classification"] in CLASSES
         # a rejected item is picked up again by the next (non-forced) run
-        r = requests.post(f"{API}/organizations/{ORG}/feasibility/run", json={"ids": [e["id"]]}, headers=editor_h, timeout=T).json()
+        r = _run(editor_h, {"ids": [e["id"]]}).json()
         assert r["queued"] == 1
         assert _wait_job(editor_h, r["job_id"])["ok"] == 1
         assert _get(editor_h, e["id"])["data"]["feasibility_draft_class"] in CLASSES
@@ -393,3 +405,94 @@ class TestFeasibility:
         bad = {**r.json()["data"], "feasibility_class": "buy"}
         r2 = requests.put(f"{API}/entities/{e['id']}", json={"data": bad, "version": r.json()["version"]}, headers=editor_h, timeout=T)
         assert r2.status_code == 400
+
+
+# ---- Tier 1 C: extraction and runner hardening ----------------------------------------------------
+# Exact counts and names below are the FakeLLM's (one row per speaker turn, name = first sentence); the
+# shapes they prove (60 rows in one answer, duplicate_of only for a name on record, one run per company
+# at a time) are provider-independent.
+@pytest.fixture(scope="class")
+def fake_provider(ai_enabled):
+    if ai_enabled.get("provider") != "fake":
+        pytest.skip("TestExtractionHardening asserts the fake provider's deterministic output")
+    return ai_enabled
+
+
+@pytest.fixture(scope="class")
+def hardening_rows(editor_h, fake_provider):
+    """60 intake rows (the engagement cap) so a fake-provider run stays in progress long enough to be observed."""
+    rows = [{"name": f"Fila {i:02d} {RUN}", "intake_kind": "slow_task", "business_problem": f"Tarea manual {i} que tarda horas cada semana."} for i in range(60)]
+    d = _import(editor_h, "initiative", rows).json()
+    assert d["counts"]["created"] == 60, d
+    return d["created"]
+
+
+class TestExtractionHardening:
+    @staticmethod
+    def _turns(n):
+        return "\n".join(f"{('CEO', 'COO', 'CFO')[i % 3]}: Tarea {i:02d} del área {i} {RUN} tarda horas cada semana y la hacen a mano." for i in range(n))
+
+    def test_sixty_turn_transcript_extracts_sixty_rows(self, editor_h, fake_provider):
+        text = self._turns(60)
+        assert len(text) < 60000
+        r = requests.post(f"{API}/ai/extract-intake", json={"organization_id": ORG, "text": text, "raised_by": "Ana Ruiz", "raised_by_role": "CEO"}, headers=editor_h, timeout=600)
+        assert r.status_code == 200, r.text
+        d = r.json()
+        assert d["prompt_version"] == "intake-v2"
+        items = d["content"]["items"]
+        assert len(items) == 60 and d["counts"]["items"] == 60
+        assert len({it["name"] for it in items}) == 60
+        assert not any(it.get("duplicate_of") for it in items)  # none of these names is on record
+
+    def test_duplicate_of_names_the_existing_record(self, editor_h, fake_provider):
+        # A name no other fixture in this module creates: RUN is one value per xdist worker, so a name shared with
+        # feas_items would already exist (case-insensitive match, on_conflict skip) whenever both classes land on one worker.
+        name = f"Registro existente {RUN}"
+        assert _import(editor_h, "initiative", [{"name": name, "intake_kind": "initiative"}]).json()["counts"]["created"] == 1
+        text = (f"COO: {name.lower()}. Queremos que los clientes vean sus pedidos sin llamar a soporte.\n"
+                f"CFO: Conciliación bancaria {RUN}. Tarda días cada mes y se hace a mano con errores.")
+        r = requests.post(f"{API}/ai/extract-intake", json={"organization_id": ORG, "text": text}, headers=editor_h, timeout=180)
+        assert r.status_code == 200, r.text
+        items = r.json()["content"]["items"]
+        by_name = {it["name"].lower(): it for it in items}
+        assert by_name[name.lower()]["duplicate_of"] == name  # matched case-insensitively, reported with the record's exact name
+        assert "duplicate_of" not in by_name[f"conciliación bancaria {RUN}".lower()]
+        # the hint is for the import screen only; an imported row never carries it (the importer rejects nothing, so it must not be sent)
+        imp = _import(editor_h, "initiative", [{k: v for k, v in by_name[f"conciliación bancaria {RUN}".lower()].items() if k != "duplicate_of"}], source="transcript", proposed=len(items)).json()
+        assert imp["counts"]["created"] == 1, imp
+
+    def test_import_audit_records_proposed_vs_created(self, editor_h, fake_provider):
+        d = _import(editor_h, "initiative", [{"name": f"Propuesta {RUN}", "intake_kind": "pain_point"}], source="transcript", proposed=7).json()
+        assert d["counts"]["created"] == 1, d
+        rows = requests.get(f"{API}/organizations/{ORG}/audit", headers=editor_h, timeout=T).json()
+        mine = [a for a in rows if a["action"] == "import" and a["summary"].startswith("proposed 7, ")]
+        assert mine and mine[0]["summary"] == "proposed 7, 1 created, 0 updated, 0 skipped, 0 errors"
+        assert _import(editor_h, "initiative", [{"name": f"Propuesta {RUN}", "intake_kind": "pain_point"}], proposed=-1).status_code == 422
+
+    def test_second_run_while_in_progress_is_409(self, editor_h, hardening_rows):
+        """The guard is a race against the fake provider: 60 rows draft in well under a second, so the second POST may
+        land after the first job already finished; then it is a plain no-op (every row has a fresh draft, nothing
+        queued). Each attempt accepts either answer, but across three attempts, each a fresh force run, the 409 must
+        show up at least once; if it never does, the guard is not there."""
+        url = f"{API}/organizations/{ORG}/feasibility/run"
+        saw_409 = False
+        for _ in range(3):
+            first = _run(editor_h, {"ids": hardening_rows, "force": True})
+            assert first.status_code == 200, first.text
+            job_id = first.json()["job_id"]
+            assert job_id and first.json()["queued"] == len(hardening_rows)
+            second = requests.post(url, json={"ids": hardening_rows}, headers=editor_h, timeout=T)
+            if second.status_code == 409:
+                saw_409 = True
+                assert "already in progress" in second.json()["detail"]
+            else:
+                assert second.status_code == 200, second.text
+                assert second.json() == {"job_id": None, "queued": 0, "skipped": len(hardening_rows)}
+            job = _wait_job(editor_h, job_id)
+            assert job["status"] == "done" and job["ok"] == len(hardening_rows), job
+            if saw_409:
+                break
+        assert saw_409, "no 409 in three attempts: the in-progress guard did not fire"
+        # once the job is done the company is free again: a non-forced run is a no-op, not a 409
+        r = _run(editor_h, {"ids": hardening_rows})
+        assert r.status_code == 200 and r.json()["job_id"] is None, r.text

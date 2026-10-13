@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Checkbox } from "@/components/ui/checkbox";
-import { UploadCloud, Sparkles } from "lucide-react";
+import { UploadCloud, Sparkles, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
 
 const MAX_CHARS = 60000;
@@ -41,19 +41,22 @@ export default function TranscriptDialog({ open, setOpen, orgId, onDone, locale 
     try {
       const d = await api.post("/ai/extract-intake", { organization_id: orgId, text, raised_by: raisedBy || undefined, raised_by_role: raisedByRole || undefined });
       setDraft(d);
-      setItems((d.content?.items || []).map((it) => ({ ...it, _on: true })));
+      // a row the AI flags as restating an existing record (or an earlier row) starts unticked; the consultant decides
+      setItems((d.content?.items || []).map((it) => ({ ...it, _on: !it.duplicate_of })));
       if (!(d.content?.items || []).length) toast.message("No items found in this text");
     } catch (e) { toast.error(apiErr(e.response?.data?.detail)); }
     finally { setBusy(false); }
   };
 
   const chosen = items.filter((i) => i._on && i.name?.trim());
+  const dups = items.filter((i) => i.duplicate_of).length;
 
   const doImport = async () => {
     setBusy(true);
     try {
-      const rows = chosen.map(({ _on, ...it }) => Object.fromEntries(Object.entries(it).filter(([, v]) => v !== "" && v !== null && v !== undefined && !(Array.isArray(v) && !v.length))));
-      const res = await api.post(`/organizations/${orgId}/import`, { etype: "initiative", rows, dry_run: false, on_conflict: "skip", source: "transcript" });
+      // duplicate_of is a hint for this screen only: it never reaches the record. `proposed` is audited (proposed vs created), never stored.
+      const rows = chosen.map(({ _on, duplicate_of, ...it }) => Object.fromEntries(Object.entries(it).filter(([, v]) => v !== "" && v !== null && v !== undefined && !(Array.isArray(v) && !v.length))));
+      const res = await api.post(`/organizations/${orgId}/import`, { etype: "initiative", rows, dry_run: false, on_conflict: "skip", source: "transcript", proposed: items.length });
       setReport(res);
       toast.success(`${res.counts.created} created, ${res.counts.skipped} skipped`);
       onDone && onDone();
@@ -84,7 +87,7 @@ export default function TranscriptDialog({ open, setOpen, orgId, onDone, locale 
           )}
           {draft && !report && (
             <>
-              <div className="flex items-center gap-2 text-[11px] text-muted-foreground"><AiTag /> Draft from {draft.model || "the AI provider"} · {items.length} items · nothing is saved until you import</div>
+              <div className="flex items-center gap-2 text-[11px] text-muted-foreground"><AiTag /> Draft from {draft.model || "the AI provider"} · {items.length} items{dups ? ` · ${dups} unticked as likely duplicates` : ""} · nothing is saved until you import</div>
               {draft.assumptions && <p className="text-[11px] text-muted-foreground italic">{draft.assumptions}</p>}
               <div className="rounded-lg border border-gray-200 overflow-hidden" data-testid="transcript-items">
                 <table className="w-full text-xs">
@@ -95,7 +98,14 @@ export default function TranscriptDialog({ open, setOpen, orgId, onDone, locale 
                     {items.map((it, i) => (
                       <tr key={i} data-testid={`transcript-item-${i}`} className={`border-t border-gray-100 ${it._on ? "" : "opacity-50"}`}>
                         <td className="px-2 py-1.5 align-top"><Checkbox data-testid={`transcript-check-${i}`} checked={!!it._on} onCheckedChange={(v) => setItem(i, { _on: !!v })} /></td>
-                        <td className="px-2 py-1.5 align-top min-w-[200px]"><Input data-testid={`transcript-name-${i}`} value={it.name || ""} onChange={(e) => setItem(i, { name: e.target.value })} className="h-7 text-xs" /></td>
+                        <td className="px-2 py-1.5 align-top min-w-[200px]">
+                          <Input data-testid={`transcript-name-${i}`} value={it.name || ""} onChange={(e) => setItem(i, { name: e.target.value })} className="h-7 text-xs" />
+                          {it.duplicate_of && (
+                            <div data-testid={`transcript-dup-${i}`} className="mt-1 flex items-center gap-1 text-[10px] text-amber-700">
+                              <AlertTriangle className="h-3 w-3 shrink-0" /><span className="truncate">parece duplicado de <span className="font-medium">{it.duplicate_of}</span></span>
+                            </div>
+                          )}
+                        </td>
                         <td className="px-2 py-1.5 align-top whitespace-nowrap">{labelFor("initiative", "intake_kind", it.intake_kind, locale) || "—"}</td>
                         <td className="px-2 py-1.5 align-top whitespace-nowrap">{AREA_BY_KEY[it.area]?.label || "—"}</td>
                         <td className="px-2 py-1.5 align-top whitespace-nowrap mono">{[labelFor("initiative", "frequency", it.frequency, locale), it.time_per_occurrence_hours ? `${it.time_per_occurrence_hours} h` : null, it.people_involved ? `${it.people_involved} p` : null].filter(Boolean).join(" · ") || "—"}</td>
