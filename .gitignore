@@ -92,3 +92,6 @@ credentials.json
 
 # keep the template, ignore real env files
 !.env.example
+
+# Claude Code workflow worktrees (local only)
+.claude/worktrees/
