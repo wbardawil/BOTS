@@ -51,7 +51,9 @@ module.exports = {
     await page.click('[data-testid="feas-override-save"]');
     const { call } = await t.waitForCall((c) => c.method === "POST" && c.path === `/entities/${draft.id}/feasibility/review`, { after: before });
     eq(call.body, { action: "overridden", final: { classification: "current_stack" }, note: NOTE, version: draftVersion }, "override payload (record version as loaded)");
-    await page.locator('[data-testid="feasibility-tab"]').getByText(NOTE).waitFor({ timeout: 10000 });
+    // Wait for the saved stamp (quoted note), not the bare note: the textarea the note was typed into also carries it
+    // as text content, so a bare-text wait can resolve before the reload renders the verdict (seen on a slow CI runner).
+    await t.waitUntil((needle) => (document.querySelector('[data-testid="feasibility-tab"]')?.textContent || "").includes(needle), `“${NOTE}”`, 15000);
     const tab = await t.text('[data-testid="feasibility-tab"]');
     expect(tab.includes(`“${NOTE}”`), "the note is shown next to the final verdict");
     expect(tab.includes("overridden by Wadi Bardawil"), "the review stamp is shown");
