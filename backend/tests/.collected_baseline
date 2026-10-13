@@ -1,0 +1,17 @@
+# Collected-count baseline for scripts/ci_guard.py: the API suites (backend/tests/test_*.py and
+# backend/tests/backend_test.py) must run at least this many tests to a verdict, with zero plain
+# skips, or CI fails. Expected failures (pytest.mark.xfail) do not count, so xfailing a test lowers
+# the count exactly as deleting it would.
+#
+# Method (2026-10-13, main @ 880a5f1): the API modules skip at import time without ADMIN_EMAIL,
+# ADMIN_PASSWORD and DEMO_USERS_PASSWORD, so `python -m pytest --collect-only -q` counts nothing
+# offline. Counted instead with
+#     grep -c '^\s*def test_' backend/tests/test_*.py backend/tests/backend_test.py
+# (none of these files parametrizes, so one def is one collected test):
+#     backend_test.py 31, test_flagship.py 33, test_iteration6.py 17, test_iteration7.py 14,
+#     test_layout_roadmap.py 14, test_phase1_lifecycle.py 17                      -> 126
+# test_concurrency.py adds 2 tests that are xfail(strict) until the wave-2 lost-update fix; they are
+# collected (128) but not counted. When that fix drops the markers, raise this to 128. tests/unit runs
+# in its own CI step and is never counted here. Raise the number whenever API tests are added so the
+# floor follows main.
+126
