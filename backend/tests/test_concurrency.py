@@ -8,6 +8,10 @@ turn red the day the fix lands, which is the signal to drop the marker.
 
 Each test fires the pair ROUNDS times (fresh version each round) and demands exactly one 200 and one 409
 every time: with the fix that is deterministic, without it at least one round yields two 200s.
+
+Only that outcome (two 200s, raised as LostUpdate) counts as the expected failure: the marker carries
+raises=LostUpdate, so a broken precondition (create or read not 200, a 4xx/5xx on the racing write, two
+409s) fails the run outright instead of hiding behind the xfail.
 """
 import os
 import threading
@@ -31,7 +35,14 @@ ORG = "o-northwind"
 RUN = uuid.uuid4().hex[:8]
 T = 20
 ROUNDS = 3
-LOST_UPDATE = pytest.mark.xfail(strict=True, reason="lost-update fix lands in wave 2 (plan Part 2, item A)")
+
+
+class LostUpdate(AssertionError):
+    """Both writes with the same version got a 200: the second silently overwrote the first."""
+
+
+LOST_UPDATE = pytest.mark.xfail(strict=True, raises=LostUpdate,
+                                reason="lost-update fix lands in wave 2 (plan Part 2, item A)")
 
 
 def _login(creds):
@@ -82,7 +93,9 @@ def _race(send_a, send_b):
 
 def _assert_one_winner(codes, what):
     assert all(c in (200, 409) for c in codes), f"{what}: unexpected status codes {codes}"
-    assert sorted(codes) == [200, 409], f"{what}: both writes won with the same version: {codes}"
+    assert 200 in codes, f"{what}: neither write won: {codes}"
+    if codes.count(200) == 2:
+        raise LostUpdate(f"{what}: both writes won with the same version: {codes}")
 
 
 @LOST_UPDATE
