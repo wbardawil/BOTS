@@ -746,16 +746,17 @@ async def upload_attachment(eid: str, file: UploadFile = File(...),
         raise HTTPException(400, "File exceeds the 15 MB limit.")
     if not data:
         raise HTTPException(400, "Empty file.")
-    path = f"{storage.APP_NAME}/{e['organization_id']}/{eid}/{secrets.token_hex(10)}.{ext}"
+    key = f"{storage.APP_NAME}/{e['organization_id']}/{eid}/{secrets.token_hex(10)}.{ext}"
     ctype = file.content_type or "application/octet-stream"
+    store = storage.get_storage()
     try:
-        result = storage.put_object(path, data, ctype)
+        stored_key = await store.put(key, data, ctype)
     except Exception as ex:
         raise HTTPException(502, f"Upload failed: {ex}")
     doc = {
         "id": secrets.token_hex(12), "organization_id": e["organization_id"], "entity_id": eid,
-        "storage_path": result["path"], "original_filename": file.filename,
-        "content_type": ctype, "size": result.get("size", len(data)),
+        "storage_path": stored_key, "provider": store.name, "original_filename": file.filename,
+        "content_type": ctype, "size": len(data),
         "is_deleted": False, "uploaded_by": user.get("name"), "uploaded_by_id": user["id"],
         "uploaded_at": now_iso(),
     }
@@ -781,10 +782,10 @@ async def download_attachment(aid: str, user: dict = Depends(get_current_user)):
         raise HTTPException(404, "File not found")
     await require_read(user, a["organization_id"])
     try:
-        content, ctype = storage.get_object(a["storage_path"])
+        content = await storage.get_storage().get(a["storage_path"])
     except Exception as ex:
         raise HTTPException(502, f"Download failed: {ex}")
-    return Response(content=content, media_type=a.get("content_type", ctype),
+    return Response(content=content, media_type=a.get("content_type") or "application/octet-stream",
                     headers={"Content-Disposition": f'inline; filename="{a["original_filename"]}"'})
 
 
@@ -797,6 +798,12 @@ async def remove_attachment(aid: str, user: dict = Depends(get_current_user)):
     await db.attachments.update_one({"id": aid}, {"$set": {"is_deleted": True}})
     await audit(user, a["organization_id"], "detach", "attachment", a["entity_id"], a["original_filename"])
     return {"ok": True}
+
+
+@api.get("/attachments/provider")
+async def attachments_provider(user: dict = Depends(get_current_user)):
+    """Read-only: which storage provider serves attachments (local | s3 | emergent) and whether it is ready."""
+    return storage.storage_status()
 
 
 # ---------------- Dashboards (adjustable, per user + company default) ----------------
@@ -1224,8 +1231,9 @@ async def startup():
     await db.entities.create_index("etype")
     await db.attachments.create_index("entity_id")
     try:
-        storage.init_storage()
-        logger.info("Object storage initialized")
+        store = storage.get_storage()
+        await store.init()
+        logger.info(f"Object storage ready: {store.name}")
     except Exception as e:
         logger.error(f"Storage init failed: {e}")
     await seed_module.seed_demo()

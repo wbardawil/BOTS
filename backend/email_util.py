@@ -1,21 +1,19 @@
-"""Transactional email via Emergent-managed Resend. Guardrail gate copied verbatim from the playbook."""
-import os
+"""Transactional email: safety guard (copied verbatim from the playbook) plus delegation to the provider.
+
+`send_email` keeps its signature; the sender itself lives in providers/email.py (smtp | emergent | none).
+"""
 import re
 import ipaddress
 import logging
-import httpx
 from html.parser import HTMLParser
 from urllib.parse import urlparse
 from dotenv import load_dotenv
 from pathlib import Path
 
+from providers.email import get_email, html_to_text
+
 load_dotenv(Path(__file__).parent / ".env")
 logger = logging.getLogger("bots.email")
-
-EMAIL_BASE_URL = "https://integrations.emergentagent.com"
-EMAIL_KEY = os.environ.get("EMERGENT_EMAIL_KEY")
-EMAIL_FROM_NAME = os.environ.get("EMAIL_FROM_NAME", "BOTS")
-EMAIL_REPLY_TO = os.environ.get("EMAIL_REPLY_TO")
 
 _SHORTENERS = ("bit.ly", "tinyurl.com", "t.co", "is.gd", "cutt.ly", "goo.gl", "rebrand.ly")
 _CRED_ASK = ("reply with your password", "reply with the code", "send your password", "cvv",
@@ -89,16 +87,7 @@ def _assert_safe_email(subject: str, html: str) -> None:
                 raise ValueError(f"Anchor text {m.group(1)!r} != real link host {real!r} (G3)")
 
 
-async def send_email(*, to: str, subject: str, html: str, reply_to: str | None = None):
-    if not EMAIL_KEY:
-        logger.warning("EMERGENT_EMAIL_KEY not set — skipping email send")
-        return None
+async def send_email(*, to: str, subject: str, html: str, reply_to: str | None = None) -> bool:
+    """Runs the guard, then hands the message to the configured provider. True when it was accepted."""
     _assert_safe_email(subject, html)
-    payload = {"to": [to], "subject": subject, "html": html, "from_name": EMAIL_FROM_NAME}
-    if reply_to or EMAIL_REPLY_TO:
-        payload["contact_email"] = reply_to or EMAIL_REPLY_TO
-    async with httpx.AsyncClient(timeout=30) as client:
-        resp = await client.post(f"{EMAIL_BASE_URL}/api/v1/email/send",
-                                 headers={"X-Email-Key": EMAIL_KEY}, json=payload)
-    resp.raise_for_status()
-    return resp.json().get("id")
+    return await get_email().send(to, subject, html_to_text(html), html=html, reply_to=reply_to)
