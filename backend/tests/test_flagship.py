@@ -445,7 +445,9 @@ class TestExtractionHardening:
         assert not any(it.get("duplicate_of") for it in items)  # none of these names is on record
 
     def test_duplicate_of_names_the_existing_record(self, editor_h, fake_provider):
-        name = f"Portal de clientes {RUN}"
+        # A name no other fixture in this module creates: RUN is one value per xdist worker, so a name shared with
+        # feas_items would already exist (case-insensitive match, on_conflict skip) whenever both classes land on one worker.
+        name = f"Registro existente {RUN}"
         assert _import(editor_h, "initiative", [{"name": name, "intake_kind": "initiative"}]).json()["counts"]["created"] == 1
         text = (f"COO: {name.lower()}. Queremos que los clientes vean sus pedidos sin llamar a soporte.\n"
                 f"CFO: Conciliación bancaria {RUN}. Tarda días cada mes y se hace a mano con errores.")

@@ -13,6 +13,11 @@ import { toast } from "sonner";
 const CLASSES = VOCAB.feasibility_class.map((o) => o.key);
 const COLS = [{ key: "", label: "Unclassified" }, ...VOCAB.feasibility_class.map((o) => ({ key: o.key, label: o.en }))];
 const POLL_MS = 1500;
+// Mirrors the backend's ACTIVE_JOB_MINUTES: a queued/running job older than this died with its process (the startup
+// sweep only fails jobs past 30 minutes), and the backend accepts a new run from here on, so the page must not wait on it.
+const ACTIVE_JOB_MS = 15 * 60 * 1000;
+/** A queued/running job young enough to still be alive. A missing or malformed stamp counts as dead, like the backend. */
+const isLive = (j) => !!j && (j.status === "queued" || j.status === "running") && Date.now() - Date.parse(j.started_at || j.created_at) < ACTIVE_JOB_MS;
 
 /** Where a record sits: its final class (solid), else its AI draft class (dashed), else unclassified. */
 export const placement = (d) => d.feasibility_class ? { col: d.feasibility_class, draft: false }
@@ -62,12 +67,18 @@ export default function Feasibility() {
     pollRef.current = setInterval(async () => {
       try {
         const j = await api.get(`/organizations/${orgId}/feasibility/jobs/${jobId}`);
-        setJob(j);
         if (j.status === "done" || j.status === "failed") {
+          setJob(j);
           clearInterval(pollRef.current);
           if (j.status === "done") toast.success(`${j.ok} drafted, ${j.failed} failed`); else toast.error(`Run failed: ${j.error || "unknown error"}`);
           load(); bumpReload();
-        }
+        } else if (!isLive(j)) {
+          // still queued/running past the active window: its process is gone; stop waiting and free the Classify button
+          setJob(null);
+          clearInterval(pollRef.current);
+          toast.error("The run stopped responding; you can classify again");
+          load();
+        } else setJob(j);
       } catch { clearInterval(pollRef.current); }
     }, POLL_MS);
   };
@@ -80,7 +91,8 @@ export default function Feasibility() {
     } catch (e) { toast.error(apiErr(e.response?.data?.detail)); }
   };
   // On mount and when the company changes: if the newest job is still queued/running (started in another tab, or
-  // before a reload), adopt it and resume polling instead of showing an idle page while drafts keep landing.
+  // before a reload) and young enough to be alive, adopt it and resume polling instead of showing an idle page while
+  // drafts keep landing. A stale one (its process restarted) is ignored, as before this effect existed.
   useEffect(() => {
     clearInterval(pollRef.current);
     setJob(null);
@@ -88,7 +100,7 @@ export default function Feasibility() {
     let alive = true;
     api.get(`/organizations/${orgId}/feasibility/jobs`).then((jobs) => {
       const latest = Array.isArray(jobs) ? jobs[0] : null;
-      if (alive && latest && (latest.status === "queued" || latest.status === "running")) { setJob(latest); poll(latest.id); }
+      if (alive && isLive(latest)) { setJob(latest); poll(latest.id); }
     }).catch(() => {});
     return () => { alive = false; };
   }, [orgId]); // eslint-disable-line react-hooks/exhaustive-deps
