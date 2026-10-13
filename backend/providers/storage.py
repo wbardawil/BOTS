@@ -71,7 +71,15 @@ class LocalDiskStorage(Storage):
 
     def __init__(self, root: Optional[str | Path] = None):
         self.root = Path(root or DEFAULT_LOCAL_DIR).resolve()
-        self.root.mkdir(parents=True, exist_ok=True)
+        self._ensure_root()
+
+    def _ensure_root(self) -> None:
+        """Creates the root. The error message carries no path (the status endpoint shows it); the log does."""
+        try:
+            self.root.mkdir(parents=True, exist_ok=True)
+        except OSError as e:
+            logger.error(f"Attachment directory could not be created at {self.root}: {e}")
+            raise StorageError("provider", "Attachment directory could not be created") from e
 
     def _path(self, key: str) -> Path:
         p = (self.root / safe_key(key)).resolve()
@@ -103,9 +111,10 @@ class LocalDiskStorage(Storage):
 
     async def init(self) -> None:
         def check():
-            self.root.mkdir(parents=True, exist_ok=True)
+            self._ensure_root()
             if not os.access(self.root, os.W_OK):
-                raise StorageError("provider", f"Attachment directory is not writable: {self.root}")
+                logger.error(f"Attachment directory is not writable: {self.root}")
+                raise StorageError("provider", "Attachment directory is not writable")
         await asyncio.to_thread(check)
         self.ready = True
 
@@ -238,9 +247,13 @@ def get_storage() -> Storage:
 
 
 def storage_status() -> dict:
-    """Read-only summary for the status endpoint: which provider is selected and whether init succeeded."""
+    """Read-only summary for the status endpoint: which provider is selected and whether init succeeded.
+    `error` is only ever one of this module's own messages: never a credential, never a server path."""
     try:
         s = get_storage()
-    except Exception as e:  # misconfiguration: say which provider was asked for, never a credential
+    except StorageError as e:  # misconfiguration: names the variable to set, nothing from the environment's values
         return {"provider": selected_provider(), "ready": False, "error": str(e)[:200]}
+    except Exception as e:  # a library or OS error could carry a path: keep the detail in the log only
+        logger.error(f"Storage provider construction failed: {e!r}")
+        return {"provider": selected_provider(), "ready": False, "error": "construction failed"}
     return {"provider": s.name, "ready": bool(s.ready)}

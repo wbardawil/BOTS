@@ -748,8 +748,8 @@ async def upload_attachment(eid: str, file: UploadFile = File(...),
         raise HTTPException(400, "Empty file.")
     key = f"{storage.APP_NAME}/{e['organization_id']}/{eid}/{secrets.token_hex(10)}.{ext}"
     ctype = file.content_type or "application/octet-stream"
-    store = storage.get_storage()
-    try:
+    try:  # get_storage() raises on misconfiguration too: report it like download does, not as a bare 500
+        store = storage.get_storage()
         stored_key = await store.put(key, data, ctype)
     except Exception as ex:
         raise HTTPException(502, f"Upload failed: {ex}")

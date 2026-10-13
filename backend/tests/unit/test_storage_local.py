@@ -124,3 +124,47 @@ def test_s3_provider_maps_calls_and_missing_keys(monkeypatch):
     with pytest.raises(StorageError) as ei:
         run(st.get("bots/o/e/k.txt"))
     assert ei.value.kind == "not_found"
+
+
+def assert_no_path(text: str, *fragments: str):
+    """The status endpoint is read by any logged-in user: no directory, path separator or OS error text."""
+    for leak in (*fragments, "/", "\\", "Errno"):
+        assert leak not in text, f"{leak!r} leaked into {text!r}"
+
+
+def test_status_error_never_carries_the_server_path(tmp_path, monkeypatch):
+    """Construction and init failures of the local provider are reported without the directory (M8 review)."""
+    blocker = tmp_path / "blocker"
+    blocker.write_text("a file where the parent directory should be")
+    monkeypatch.setattr(mod, "_storage", None)
+    monkeypatch.setenv("BOTS_STORAGE_PROVIDER", "local")
+    monkeypatch.setenv("BOTS_STORAGE_DIR", str(blocker / "attachments"))
+    with pytest.raises(StorageError) as ei:
+        get_storage()  # mkdir fails: the parent is a file
+    assert ei.value.kind == "provider"
+    status = storage_status()
+    assert status["provider"] == "local" and status["ready"] is False and status["error"]
+    assert_no_path(status["error"], str(tmp_path), "blocker")
+    # init() after a good construction: the root was replaced by a file in the meantime
+    st = LocalDiskStorage(tmp_path / "broken")
+    (tmp_path / "broken").rmdir()
+    (tmp_path / "broken").write_text("x")
+    with pytest.raises(StorageError) as ei:
+        run(st.init())
+    assert ei.value.kind == "provider" and st.ready is False
+    assert_no_path(str(ei.value), str(tmp_path), "broken")
+
+
+def test_status_maps_foreign_exceptions_to_a_fixed_message(monkeypatch):
+    """Anything that is not a StorageError (a library or OS error, which may quote a path) is never echoed."""
+    class Boom(mod.LocalDiskStorage):
+        def __init__(self, root=None):
+            raise RuntimeError("PermissionError: [Errno 13] /srv/private/attachments")
+    monkeypatch.setattr(mod, "_storage", None)
+    monkeypatch.setattr(mod, "LocalDiskStorage", Boom)
+    monkeypatch.setenv("BOTS_STORAGE_PROVIDER", "local")
+    with pytest.raises(RuntimeError):
+        get_storage()
+    status = storage_status()
+    assert status == {"provider": "local", "ready": False, "error": "construction failed"}
+    assert_no_path(status["error"], "/srv/private/attachments")
