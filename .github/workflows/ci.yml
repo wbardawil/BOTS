@@ -33,7 +33,7 @@ jobs:
     env:
       MONGO_URL: mongodb://localhost:27017
       DB_NAME: bots_ci_${{ github.run_id }}
-      ADMIN_EMAIL: ci-admin@bots.test
+      ADMIN_EMAIL: ci-admin@bots-ci.dev
       ALLOW_DEMO_RESEED: "true"
       BOTS_LLM_PROVIDER: fake
       BOTS_TEST_BASE_URL: http://localhost:8001
